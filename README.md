@@ -48,8 +48,7 @@ LangGraph를 활용한 8단계 파이프라인으로 신용카드 거래의 사�
 | LLM 오케스트레이션 | LangGraph, LangChain |
 | LLM 모델 | Google Gemini 2.5 Flash |
 | ML 모델 | LightGBM |
-| 백엔드 | FastAPI |
-| 프론트엔드 | Streamlit |
+| 프론트 | Streamlit |
 | 언어 | Python 3.10+ |
 
 ---
@@ -70,10 +69,12 @@ FraudInvestigator/
 │       ├── ml_fraud_scorer.py        # Tool 6: ML 모델 예측
 │       ├── action_decision_maker.py  # Tool 7: 최종 판단 (LLM)
 │       └── report_generator.py       # Tool 8: 자연어 리포트 생성 (LLM)
-├── api/
-│   └── main.py                     # FastAPI 엔드포인트
+├── services/
+│   └── investigate.py              # graph 호출 래핑
 ├── frontend/
-│   └── app.py                      # Streamlit UI
+│   └── app.py                      # streamlit
+├── scripts/
+│   └── smoke_test.py
 ├── data/                           # 데이터 파일 (gitignore 처리)
 │   ├── customer_profiles.csv
 │   ├── merchant_risk.csv
@@ -132,6 +133,15 @@ GOOGLE_API_KEY=여기에_Google_AI_Studio_API_키_입력
 ---
 
 ## 🚀 사용 방법
+
+데모 UI / 로컬 테스트
+
+```bash
+python scripts/smoke_test.py
+streamlit run frontend/app.py
+```
+
+UI 쪽에서는 `services/investigate.py` 의 `investigate(transaction)` 쓰면 됨
 
 ### Python에서 직접 실행
 

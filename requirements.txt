@@ -39,3 +39,9 @@ urllib3==2.7.0
 uuid_utils==0.15.0
 xxhash==3.7.0
 zstandard==0.25.0
+joblib>=1.4.0
+langchain-google-genai>=2.0.0
+lightgbm>=4.0.0
+numpy>=1.26.0
+pandas>=2.0.0
+streamlit>=1.32.0
