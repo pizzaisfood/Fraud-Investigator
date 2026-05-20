@@ -101,6 +101,7 @@ def _build_prompt(state: FraudState) -> str:
 - 이번 거래 Z-score: {cp.get("amount_z_score", 0):.2f} ({"이상 금액" if cp.get("is_amount_anomalous") else "정상 범위"})
 - 평소 이용 카테고리: {cp.get("usual_categories", [])}
 - 이번 거래 카테고리 이상 여부: {"예" if cp.get("is_unusual_category") else "아니오"}
+- 이번 거래 지역 이상 여부: {"예" if cp.get("is_unusual_city") else "아니오"}
 - 신용 한도: ${cp.get("credit_limit", 0):.2f}
 
 [3. 가맹점 위험도]
