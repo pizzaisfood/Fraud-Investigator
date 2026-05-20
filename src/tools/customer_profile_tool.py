@@ -71,6 +71,7 @@ def customer_profile_tool(state: FraudState) -> dict:
         "amount_z_score": round(z_score, 2),
         "is_amount_anomalous": abs(z_score) > 2,
         "is_unusual_category": is_unusual_category,
+        "is_unusual_city": int(tx_features.get("city", "") != customer_profile.get("home_city", "")),
     }
 
     return {"customer_profile": customer_profile}

@@ -25,19 +25,17 @@ except Exception:
     _has_model = False
 
 # ── 피처 순서 정의 ─────────────────────────────────────────────────────
-# ⚠️ ML 팀원과 반드시 합의 필요: 모델 학습 시 사용한 피처 순서와 동일해야 한다.
-# 순서가 다르면 모델이 엉뚱한 값을 예측한다.
+# ML 팀원(조진영)과 합의된 피처 순서 — 이 순서가 모델 학습 순서와 동일해야 한다.
+# ⚠️ 절대 순서 바꾸지 말 것: 순서가 다르면 모델이 완전히 엉뚱한 값을 예측한다.
 _FEATURE_NAMES = [
-    "amount",  # 거래 금액
-    "hour_of_day",  # 거래 시각 (0~23)
-    "is_night_transaction",  # 새벽/밤 거래 여부 (0 or 1)
-    "is_weekend",  # 주말 여부 (0 or 1)
-    "amount_z_score",  # 평소 대비 금액 편차 (Z-score)
-    "avg_amount_30d",  # 고객 30일 평균 거래금액
-    "credit_limit",  # 신용한도
-    "fraud_report_count",  # 가맹점 사기 신고 건수
-    "chargeback_rate",  # 가맹점 차지백 비율
-    "avg_daily_txn_count",  # 고객 일평균 거래 건수
+    "amt",                  # 1. 거래 금액
+    "amount_ratio",         # 2. 고객 평균 대비 금액 비율 (현재금액 / 30일평균)
+    "is_unusual_hour",      # 3. 비정상 시간대 여부 (0/1)
+    "is_unusual_city",      # 4. 평소 외 지역 여부 (0/1)
+    "is_unusual_category",  # 5. 평소 외 카테고리 여부 (0/1)
+    "merchant_risk_score",  # 6. 가맹점 위험도 (low=0, medium=1, high=2)
+    "avg_amount_30d",       # 7. 고객 30일 평균 금액
+    "std_amount_30d",       # 8. 고객 30일 표준편차
 ]
 
 
@@ -74,22 +72,32 @@ def ml_fraud_scorer(state: FraudState) -> dict:
 def _extract_features(state: FraudState) -> dict:
     """
     State의 여러 필드에서 모델 입력 피처를 하나의 딕셔너리로 모은다.
-    Boolean 값은 int로 변환한다 (True→1, False→0).
-    ML 모델은 숫자만 받기 때문이다.
+    _FEATURE_NAMES 순서와 키 이름이 정확히 일치해야 한다.
+
+    Boolean → int 변환: ML 모델은 숫자만 받기 때문 (True→1, False→0)
+    merchant_risk_level → 숫자 변환: low=0, medium=1, high=2
     """
     tx = state.get("tx_features") or {}
     cp = state.get("customer_profile") or {}
     mr = state.get("merchant_risk") or {}
 
+    # 가맹점 위험도 문자열 → 숫자 변환 (ML 팀 합의: low=0, medium=1, high=2)
+    _risk_map = {"low": 0, "medium": 1, "high": 2}
+    merchant_risk_score = _risk_map.get(mr.get("risk_level", "low"), 0)
+
+    # amount_ratio: 현재 거래금액 / 고객 30일 평균금액
+    # 평균이 0이면 나누기 오류 방지 → max(..., 1.0) 처리
+    amount = tx.get("amount", 0.0)
+    avg_amount = cp.get("avg_amount_30d", 0.0)
+    amount_ratio = amount / max(avg_amount, 1.0)
+
     return {
-        "amount": tx.get("amount", 0.0),
-        "hour_of_day": float(tx.get("hour_of_day", 0)),
-        "is_night_transaction": int(tx.get("is_night_transaction", False)),
-        "is_weekend": int(tx.get("is_weekend", False)),
-        "amount_z_score": cp.get("amount_z_score", 0.0),
-        "avg_amount_30d": cp.get("avg_amount_30d", 0.0),
-        "credit_limit": cp.get("credit_limit", 0.0),
-        "fraud_report_count": float(mr.get("fraud_report_count", 0)),
-        "chargeback_rate": mr.get("chargeback_rate", 0.0),
-        "avg_daily_txn_count": cp.get("avg_daily_txn_count", 0.0),
+        "amt":                 amount,
+        "amount_ratio":        round(amount_ratio, 4),
+        "is_unusual_hour":     int(tx.get("is_night_transaction", False)),
+        "is_unusual_city":     int(cp.get("is_unusual_city", False)),   # customer_profile_tool에서 채워줌
+        "is_unusual_category": int(cp.get("is_unusual_category", False)),
+        "merchant_risk_score": merchant_risk_score,
+        "avg_amount_30d":      avg_amount,
+        "std_amount_30d":      cp.get("std_amount_30d", 0.0),
     }
