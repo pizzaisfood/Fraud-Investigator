@@ -36,6 +36,8 @@ _FEATURE_NAMES = [
     "merchant_risk_score",  # 6. 가맹점 위험도 (low=0, medium=1, high=2)
     "avg_amount_30d",       # 7. 고객 30일 평균 금액
     "std_amount_30d",       # 8. 고객 30일 표준편차
+    "chargeback_rate",      # 9. 가맹점 차지백 비율 (SHAP 중요도 2위)
+    "fraud_report_count",   # 10. 가맹점 사기 신고 건수 (SHAP 중요도 3위)
 ]
 
 
@@ -100,4 +102,6 @@ def _extract_features(state: FraudState) -> dict:
         "merchant_risk_score": merchant_risk_score,
         "avg_amount_30d":      avg_amount,
         "std_amount_30d":      cp.get("std_amount_30d", 0.0),
+        "chargeback_rate":     float(mr.get("chargeback_rate", 0.0)),   # merchant_risk_assessor에서 채워줌
+        "fraud_report_count":  float(mr.get("fraud_report_count", 0)),  # merchant_risk_assessor에서 채워줌
     }
