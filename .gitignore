@@ -7,3 +7,6 @@ __pycache__/
 *.model
 .DS_Store
 *.pdf
+
+# 룰 정의는 코드 일부라 push 허용
+!data/fds_rules.csv
