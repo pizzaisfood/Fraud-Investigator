@@ -110,12 +110,20 @@ LLM 팀장(이정훈)에게 완성된 `rag_retriever` 함수를 전달하면
 직접 등록이 필요한 경우:
 
 ```python
-# src/graph.py 에 추가
+# src/graph.py 수정 방법:
+#
+# 1. 기존 엣지 한 줄 삭제:
+#    graph.add_edge("ml_fraud_scorer", "action_decision_maker")  ← 이 줄 제거
+#
+# 2. 아래 세 줄 추가:
 from src.tools.rag_retriever import rag_retriever
 
 graph.add_node("rag_retriever", rag_retriever)
-graph.add_edge("ml_fraud_scorer", "rag_retriever")   # 기존 엣지 삭제 후
-graph.add_edge("rag_retriever", "action_decision_maker")
+graph.add_edge("ml_fraud_scorer",  "rag_retriever")
+graph.add_edge("rag_retriever",    "action_decision_maker")
+#
+# 결과: ml_fraud_scorer → rag_retriever → action_decision_maker
+#       rule_based_scorer → action_decision_maker  (이 엣지는 그대로 유지)
 ```
 
 ---

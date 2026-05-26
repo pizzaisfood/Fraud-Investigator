@@ -41,7 +41,7 @@ from src.schemas import TransactionInput
 | `action_decision` | `str` | 권고 조치 | `"block"` / `"review"` / `"approve"` |
 | `report` | `str` | 자연어 조사 리포트 (마크다운) | — |
 | `rule_hits` | `list[str]` | 발동된 룰 ID 목록 | `["R001", "R004"]` / `[]` |
-| `rule_score` | `float` | 룰 기반 누적 점수 | `0.0` ~ `100.0` |
+| `rule_score` | `float` | 룰 기반 누적 점수 (발동된 룰 점수 합산) | `0.0` 이상 |
 | `ml_score` | `float \| None` | ML 사기 확률 | `0.0` ~ `1.0` / `None` |
 
 > **주의**: `ml_score`는 모델 파일(`data/fraud_model.pkl`)이 없으면 `None`입니다.  

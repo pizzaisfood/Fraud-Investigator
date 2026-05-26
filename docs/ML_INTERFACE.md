@@ -37,7 +37,7 @@ data/fraud_model.pkl   ← 이 경로에 저장해 주세요
 
 ## SHAP Feature 중요도 (참고)
 
-모델 학습 시 참고할 feature 중요도입니다.
+실제 학습된 모델의 SHAP feature 중요도입니다 (ML팀 학습 결과 기준).
 
 | 순위 | Feature | SHAP 값 |
 |---|---|---|
