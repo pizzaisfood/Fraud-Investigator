@@ -41,6 +41,24 @@ class FraudState(TypedDict):
     # LightGBM 모델이 예측한 사기 확률 (0.0 ~ 1.0)
     ml_score: Optional[float]  # 예: 0.87
 
+    # ── Tool 6.5: RAG Retriever (RAG 팀 담당) ────────────────────
+    # 현재 거래와 유사한 과거 사기 사례를 벡터 DB에서 검색한 결과
+    # Tool 7(판단)과 Tool 8(리포트)에서 근거 자료로 활용됨
+    #
+    # RAG 팀이 채워야 할 형식:
+    # [
+    #     {
+    #         "source": "EBA 2025 Report",          # 출처
+    #         "snippet": "단기 다중 거래는 카드...", # 관련 내용 요약
+    #         "similarity": 0.87,                   # 유사도 점수 (0~1)
+    #         "tags": ["velocity", "card_testing"]  # 관련 위험 태그
+    #     },
+    #     ...  # 최대 5개
+    # ]
+    #
+    # 없으면 None — Tool 7, 8이 None 체크 후 graceful하게 처리함
+    rag_evidence: Optional[List[Dict[str, Any]]]
+
     # ── Tool 7: Action Decision Maker ─────────────────────────
     # Rule Score + ML Score를 종합해 내린 최종 판단
     risk_level: Optional[str]  # "high" | "medium" | "low"

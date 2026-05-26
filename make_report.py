@@ -181,7 +181,7 @@ html = f"""<!DOCTYPE html>
     <!-- 헤더 -->
     <div style="text-align:center;margin-bottom:28px;">
       <div style="font-size:28px;font-weight:700;color:#1A1A2E;">🔍 FraudInvestigator</div>
-      <div style="font-size:14px;color:#888;margin-top:6px;">LangGraph · Gemini 2.5 Flash · LightGBM</div>
+      <div style="font-size:14px;color:#888;margin-top:6px;">LangGraph · GPT-4o · LightGBM</div>
       <div style="margin-top:14px;display:inline-flex;gap:10px;flex-wrap:wrap;justify-content:center;">
         <span style="background:#E8F5E9;color:#2E7D32;border-radius:20px;padding:4px 14px;font-size:12px;font-weight:600;">✅ 8-Tool Pipeline</span>
         <span style="background:#E3F2FD;color:#1565C0;border-radius:20px;padding:4px 14px;font-size:12px;font-weight:600;">🤖 LLM 자동 판단</span>

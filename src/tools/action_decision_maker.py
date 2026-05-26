@@ -5,11 +5,11 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from dotenv import load_dotenv
 from langchain_core.messages import HumanMessage, SystemMessage
-from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_openai import ChatOpenAI
 
 from src.state import FraudState
 
-load_dotenv()  # .env 파일에서 OPENAI_API_KEY 로드
+load_dotenv()  # .env 파일에서 GENAI_TEAM09 (OpenAI API 키) 로드
 
 # ── 판단 기준 임계값 ────────────────────────────────────────────────
 # 이 값들을 바꾸면 전체 시스템의 민감도가 바뀐다.
@@ -20,7 +20,11 @@ LOW_ML_THRESHOLD = 0.30  # ML 확률 30% 이하 → 둘 다 낮으면 저위험
 
 # ── LLM 초기화 ──────────────────────────────────────────────────────
 # temperature=0: 창의성 없이 일관된 판단을 내리게 설정
-_llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0)
+_llm = ChatOpenAI(
+    model="gpt-4o",
+    temperature=0,
+    openai_api_key=os.environ.get("GENAI_TEAM09"),
+)
 
 
 def action_decision_maker(state: FraudState) -> dict:
@@ -62,6 +66,16 @@ def _llm_decision(
 
     ml_score_str = f"{ml_score:.2f}" if ml_score is not None else "데이터 없음"
 
+    # RAG 근거 자료가 있으면 프롬프트에 포함
+    rag_evidence = state.get("rag_evidence") or []
+    rag_section = ""
+    if rag_evidence:
+        rag_items = "\n".join(
+            f"  · [{e.get('source', '?')}] (유사도: {e.get('similarity', 0):.2f}) {e.get('snippet', '')[:120]}"
+            for e in rag_evidence[:3]  # 최대 3개만 포함 (프롬프트 길이 제한)
+        )
+        rag_section = f"\n- 유사 사기 사례 (RAG 검색 결과):\n{rag_items}"
+
     prompt = f"""당신은 금융 사기 탐지 전문가입니다.
 아래 거래 분석 결과를 바탕으로 최종 판단을 내려주세요.
 
@@ -71,7 +85,7 @@ def _llm_decision(
 - 가맹점 위험도: {mr.get("risk_level", "알 수 없음")}
 - 고객 금액 Z-score: {cp.get("amount_z_score", 0):.2f}
 - 룰 기반 점수: {rule_score}점 (발동 룰: {", ".join(rule_hits) if rule_hits else "없음"})
-- ML 사기 확률: {ml_score_str}
+- ML 사기 확률: {ml_score_str}{rag_section}
 
 [판단 기준]
 - high + block: 여러 위험 신호가 겹치거나, 단일 신호라도 매우 강할 때

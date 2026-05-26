@@ -5,13 +5,17 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from dotenv import load_dotenv
 from langchain_core.messages import HumanMessage, SystemMessage
-from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_openai import ChatOpenAI
 
 from src.state import FraudState
 
 load_dotenv()
 
-_llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0.3)
+_llm = ChatOpenAI(
+    model="gpt-4o",
+    temperature=0.3,
+    openai_api_key=os.environ.get("GENAI_TEAM09"),
+)
 # temperature=0.3: 판단(Tool 7)보다는 약간 높게 → 자연스러운 문장 생성
 
 
@@ -57,6 +61,7 @@ def _build_prompt(state: FraudState) -> str:
     ml_score = state.get("ml_score")
     risk_level = state.get("risk_level") or "unknown"
     action = state.get("action_decision") or "unknown"
+    rag_evidence = state.get("rag_evidence") or []
 
     # ml_score 표시 처리
     ml_str = (
@@ -84,6 +89,17 @@ def _build_prompt(state: FraudState) -> str:
     risk_map = {"high": "고위험", "medium": "중간", "low": "저위험"}
     action_ko = action_map.get(action, action)
     risk_ko = risk_map.get(risk_level, risk_level)
+
+    # RAG 근거 자료 섹션 구성
+    if rag_evidence:
+        rag_lines = "\n".join(
+            f"  - [{e.get('source', '?')}] (유사도: {e.get('similarity', 0):.2f})\n"
+            f"    {e.get('snippet', '')[:200]}"
+            for e in rag_evidence
+        )
+        rag_section = f"\n[7. 유사 사기 사례 (RAG 검색)]\n{rag_lines}"
+    else:
+        rag_section = "\n[7. 유사 사기 사례]\n- 검색 결과 없음 (RAG 미연동 또는 유사 사례 없음)"
 
     prompt = f"""다음은 거래 #{tx.get("trans_num", "N/A")}에 대한 사기 탐지 분석 결과입니다.
 이 데이터를 바탕으로 전문적인 사기 조사 리포트를 작성해 주세요.
@@ -120,8 +136,9 @@ def _build_prompt(state: FraudState) -> str:
 
 [6. ML 모델 예측]
 - 사기 확률: {ml_str}
+{rag_section}
 
-[7. 최종 판단]
+[8. 최종 판단]
 - 위험 등급: {risk_ko} ({risk_level})
 - 조치: {action_ko} ({action})
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
