@@ -24,7 +24,7 @@ data/fraud_model.pkl   ← 이 경로에 저장해 주세요
 |---|---|---|---|---|
 | 1 | `amt` | `float` | 거래 금액 | — |
 | 2 | `amount_ratio` | `float` | 거래금액 / 고객 30일 평균금액 | `1.0` |
-| 3 | `is_unusual_hour` | `int` (0/1) | 새벽 0~5시 거래 여부 | `0` |
+| 3 | `is_unusual_hour` | `int` (0/1) | 새벽·심야 거래 여부 (hour < 6 or hour >= 22) | `0` |
 | 4 | `is_unusual_city` | `int` (0/1) | 평소와 다른 도시 여부 | `0` |
 | 5 | `is_unusual_category` | `int` (0/1) | 평소와 다른 카테고리 여부 | `0` |
 | 6 | `merchant_risk_score` | `int` | 가맹점 위험 점수 (low=0, medium=1, high=2) | `0` |
@@ -41,11 +41,11 @@ data/fraud_model.pkl   ← 이 경로에 저장해 주세요
 
 | 순위 | Feature | SHAP 값 |
 |---|---|---|
-| 1 | `amt` | 2.341 |
+| 1 | `amt` | 1.417 |
 | 2 | `chargeback_rate` | 1.153 |
 | 3 | `fraud_report_count` | 0.593 |
-| 4 | `amount_ratio` | 0.487 |
-| 5 | `merchant_risk_score` | 0.312 |
+| 4 | `avg_amount_30d` | 0.572 |
+| 5 | `amount_ratio` | 0.479 |
 
 ---
 
@@ -75,7 +75,7 @@ ml_score = float(proba[0][1])  # 사기 확률 (0.0 ~ 1.0)
 import pandas as pd
 
 df["amount_ratio"] = df["amt"] / df["avg_amount_30d"].replace(0, 1)
-df["is_unusual_hour"] = df["hour"].apply(lambda h: 1 if h < 6 else 0).astype(int)
+df["is_unusual_hour"] = df["hour"].apply(lambda h: 1 if h < 6 or h >= 22 else 0).astype(int)
 df["merchant_risk_score"] = df["risk_level"].map({"low": 0, "medium": 1, "high": 2})
 
 feature_cols = [
