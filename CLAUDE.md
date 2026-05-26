@@ -44,8 +44,9 @@ python make_report.py     # HTML 리포트 생성 + 브라우저 자동 오픈
 - `src/tools/*.py` — 각 Tool (시그니처: `def tool_name(state: FraudState) -> dict`)
 
 **설계 원칙:**
-- Tool 1~6은 규칙/ML 기반 (비용 최소화)
-- Tool 7·8만 GPT-4o 호출 (LLM as tiebreaker + reporter)
+- Tool 1~7은 규칙/ML 기반 (비용 최소화, 완전 deterministic)
+- Tool 8만 GPT-4o 호출 (LLM as reporter — 설명 전담)
+- Tool 7은 고정 임계값으로만 판단 (LLM 개입 없음 — PM 결정으로 감사·재현성 확보)
 - `fraud_graph = build_graph()`는 모듈 import 시 한 번만 실행 (Module-level 로딩)
 
 ---
@@ -68,4 +69,4 @@ python make_report.py     # HTML 리포트 생성 + 브라우저 자동 오픈
 | 백엔드(FastAPI) · 프론트(Streamlit) | 팀원 | `api/main.py` |
 | ML 모델(LightGBM) | 팀원 | `data/fraud_model.pkl` |
 
-> **LLM**: GPT-4o 사용 (`GENAI_TEAM09` 환경변수). Tool 7(판단)은 경계선 케이스에서만 호출, Tool 8(리포트)은 항상 호출.
+> **LLM**: GPT-4o 사용 (`GENAI_TEAM09` 환경변수). Tool 7(판단)은 LLM 없이 deterministic 룰만 사용, Tool 8(리포트)만 GPT-4o 호출.
