@@ -3,11 +3,7 @@ import sys
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from dotenv import load_dotenv
-
 from src.state import FraudState
-
-load_dotenv()  # .env 파일에서 GENAI_TEAM09 (OpenAI API 키) 로드
 
 # ── 판단 기준 임계값 ────────────────────────────────────────────────
 # 이 값들을 바꾸면 전체 시스템의 민감도가 바뀐다.
@@ -24,13 +20,12 @@ def action_decision_maker(state: FraudState) -> dict:
     Tool 7: Action Decision Maker
     - 역할: rule_score + ml_score를 종합해 최종 위험 등급과 조치를 결정한다.
     - LLM 사용: X (deterministic 룰만 사용 — PM 결정으로 LLM 판단 제거)
-    - 읽는 State 필드: rule_score, rule_hits, ml_score
+    - 읽는 State 필드: rule_score, ml_score
     - 쓰는 State 필드: risk_level, action_decision
     - 참고: LLM은 Tool 8(report_generator)에서 설명 역할만 수행
     """
     rule_score = float(state.get("rule_score") or 0.0)
     ml_score = state.get("ml_score")  # None 가능 (모델 파일 없을 때)
-    rule_hits = state.get("rule_hits") or []
 
     # ── 1. 명확한 고위험 → 즉시 block ────────────────────────
     # 단일 신호만으로도 충분히 강할 때

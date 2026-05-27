@@ -43,7 +43,8 @@ class FraudState(TypedDict):
 
     # ── Tool 6.5: RAG Retriever (RAG 팀 담당) ────────────────────
     # 현재 거래와 유사한 과거 사기 사례를 벡터 DB에서 검색한 결과
-    # Tool 7(판단)과 Tool 8(리포트)에서 근거 자료로 활용됨
+    # Tool 8(리포트)에서 근거 자료로 활용됨
+    # ※ Tool 7은 PM 결정으로 deterministic 룰만 사용 — rag_evidence 미사용
     #
     # RAG 팀이 채워야 할 형식:
     # [
@@ -56,7 +57,7 @@ class FraudState(TypedDict):
     #     ...  # 최대 5개
     # ]
     #
-    # 없으면 None — Tool 7, 8이 None 체크 후 graceful하게 처리함
+    # 없으면 None — Tool 8이 None 체크 후 graceful하게 처리함
     rag_evidence: Optional[List[Dict[str, Any]]]
 
     # ── Tool 7: Action Decision Maker ─────────────────────────
