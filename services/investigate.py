@@ -1,16 +1,22 @@
-import sys
+import copy
 import os
+import sys
+from datetime import datetime
+from typing import Callable, Optional
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(ROOT)
 
-from dotenv import load_dotenv
+try:
+    from dotenv import load_dotenv
+except ModuleNotFoundError:
+    def load_dotenv(*_args, **_kwargs):
+        return False
 
 load_dotenv(os.path.join(ROOT, ".env"))
 
 _graph = None
 
-# streamlit에서 쓸 필드만 골라냄 (나중에 state 바뀌면 여기 수정)
 _KEYS = [
     "risk_level",
     "action_decision",
@@ -22,6 +28,17 @@ _KEYS = [
     "customer_profile",
     "merchant_risk",
     "velocity_signals",
+]
+
+NODE_DEFINITIONS = [
+    ("transaction_analyzer", "거래 분석", "tx_features"),
+    ("customer_profile_tool", "고객 프로필", "customer_profile"),
+    ("merchant_risk_assessor", "가맹점 위험도", "merchant_risk"),
+    ("velocity_checker", "거래 빈도", "velocity_signals"),
+    ("rule_based_scorer", "룰 스코어", "rule_score"),
+    ("ml_fraud_scorer", "ML 점수", "ml_score"),
+    ("action_decision_maker", "최종 판단", "action_decision"),
+    ("report_generator", "리포트 생성", "report"),
 ]
 
 
@@ -71,7 +88,6 @@ def _mock_report(state: dict) -> dict:
 
 
 def _setup_offline_graph():
-    # 팀장 tool import 시 키 검증만 통과시키기 위함 (실제 호출 안 함)
     if not os.getenv("GOOGLE_API_KEY") and not os.getenv("GEMINI_API_KEY"):
         os.environ["GOOGLE_API_KEY"] = "offline"
 
@@ -96,12 +112,121 @@ def _get_graph():
     return _graph
 
 
+def _ensure_runtime_ready():
+    _get_graph()
+
+
+def _get_pipeline_nodes():
+    _ensure_runtime_ready()
+    from src.tools.action_decision_maker import action_decision_maker
+    from src.tools.customer_profile_tool import customer_profile_tool
+    from src.tools.merchant_risk_assessor import merchant_risk_assessor
+    from src.tools.ml_fraud_scorer import ml_fraud_scorer
+    from src.tools.report_generator import report_generator
+    from src.tools.rule_based_scorer import rule_based_scorer
+    from src.tools.transaction_analyzer import transaction_analyzer
+    from src.tools.velocity_checker import velocity_checker
+
+    node_map = {
+        "transaction_analyzer": transaction_analyzer,
+        "customer_profile_tool": customer_profile_tool,
+        "merchant_risk_assessor": merchant_risk_assessor,
+        "velocity_checker": velocity_checker,
+        "rule_based_scorer": rule_based_scorer,
+        "ml_fraud_scorer": ml_fraud_scorer,
+        "action_decision_maker": action_decision_maker,
+        "report_generator": report_generator,
+    }
+
+    return [
+        {
+            "id": node_id,
+            "label": label,
+            "focus_key": focus_key,
+            "func": node_map[node_id],
+        }
+        for node_id, label, focus_key in NODE_DEFINITIONS
+    ]
+
+
+def _select_result(state: dict) -> dict:
+    return {k: state.get(k) for k in _KEYS}
+
+
+def _build_request_record(
+    transaction: dict, state: dict, node_traces: list[dict], request_id: Optional[str] = None
+) -> dict:
+    return {
+        "request_id": request_id or datetime.now().strftime("REQ-%Y%m%d-%H%M%S"),
+        "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "status": "completed",
+        "transaction": transaction,
+        "result": _select_result(state),
+        "node_traces": node_traces,
+        "state": state,
+    }
+
+
 def investigate(transaction: dict) -> dict:
     if not transaction:
         raise ValueError("transaction 비어있음")
 
     out = _get_graph().invoke({"transaction": transaction})
-    return {k: out.get(k) for k in _KEYS}
+    return _select_result(out)
+
+
+def investigate_with_trace(
+    transaction: dict,
+    on_step: Optional[Callable[[dict, int, int, dict], None]] = None,
+    on_step_start: Optional[Callable[[dict, int, int, dict], None]] = None,
+    on_step_end: Optional[Callable[[dict, int, int, dict], None]] = None,
+    request_id: Optional[str] = None,
+) -> dict:
+    if not transaction:
+        raise ValueError("transaction 비어있음")
+
+    state = {"transaction": copy.deepcopy(transaction)}
+    node_traces = []
+    pipeline_nodes = _get_pipeline_nodes()
+    total = len(pipeline_nodes)
+
+    for index, node in enumerate(pipeline_nodes, start=1):
+        running_trace = {
+            "id": node["id"],
+            "label": node["label"],
+            "status": "running",
+            "step": index,
+            "total_steps": total,
+            "focus_key": node["focus_key"],
+            "updates": {},
+            "focus_data": None,
+        }
+        if on_step_start:
+            on_step_start(copy.deepcopy(running_trace), index, total, copy.deepcopy(state))
+        elif on_step:
+            on_step(copy.deepcopy(running_trace), index, total, copy.deepcopy(state))
+
+        updates = node["func"](state)
+        state.update(updates)
+
+        trace = {
+            "id": node["id"],
+            "label": node["label"],
+            "status": "completed",
+            "step": index,
+            "total_steps": total,
+            "focus_key": node["focus_key"],
+            "updates": copy.deepcopy(updates),
+            "focus_data": copy.deepcopy(state.get(node["focus_key"])),
+        }
+        node_traces.append(trace)
+
+        if on_step_end:
+            on_step_end(copy.deepcopy(trace), index, total, copy.deepcopy(state))
+        elif on_step:
+            on_step(copy.deepcopy(trace), index, total, copy.deepcopy(state))
+
+    return _build_request_record(transaction, copy.deepcopy(state), node_traces, request_id)
 
 
 def sample_transaction():
