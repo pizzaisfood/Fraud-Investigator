@@ -7,11 +7,7 @@ from typing import Callable, Optional
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(ROOT)
 
-try:
-    from dotenv import load_dotenv
-except ModuleNotFoundError:
-    def load_dotenv(*_args, **_kwargs):
-        return False
+from dotenv import load_dotenv
 
 load_dotenv(os.path.join(ROOT, ".env"))
 
