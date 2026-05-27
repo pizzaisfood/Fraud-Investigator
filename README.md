@@ -60,6 +60,8 @@ FraudInvestigator/
 ├── src/
 │   ├── state.py                    # LangGraph 공유 상태 스키마 (FraudState)
 │   ├── graph.py                    # LangGraph 그래프 정의 및 컴파일
+│   ├── schemas.py                  # BE/FE 연동용 Pydantic 스키마
+│   ├── api_interface.py            # BE용 단일 진입 인터페이스
 │   └── tools/
 │       ├── transaction_analyzer.py   # Tool 1: 거래 특징 추출
 │       ├── customer_profile_tool.py  # Tool 2: 고객 프로필 조회
@@ -143,27 +145,28 @@ streamlit run frontend/app.py
 
 UI 쪽에서는 `services/investigate.py` 의 `investigate(transaction)` 쓰면 됨
 
+BE 연동 시에는 `src/api_interface.py` 의 `investigate_transaction(tx)` 를 사용하면
+입력 검증과 결과 스키마를 함께 받을 수 있습니다.
+
 ### Python에서 직접 실행
 
 ```python
-from src.graph import fraud_graph
+from src.api_interface import investigate_transaction
 
-result = fraud_graph.invoke({
-    "transaction": {
-        "trans_num":              "abc123",
-        "trans_date_trans_time":  "2020-06-21 03:14:25",
-        "cc_num":                 123456789,
-        "merchant":               "fraud_Shop_Name",
-        "amt":                    1500.0,
-        "category":               "shopping_net",
-        "city":                   "Seoul",
-        "state":                  "KR"
-    }
+result = investigate_transaction({
+    "trans_num": "abc123",
+    "trans_date_trans_time": "2020-06-21 03:14:25",
+    "cc_num": 123456789,
+    "merchant": "fraud_Shop_Name",
+    "amt": 1500.0,
+    "category": "shopping_net",
+    "city": "Seoul",
+    "state": "KR",
 })
 
-print(result["action_decision"])  # "block" / "review" / "approve"
-print(result["risk_level"])       # "high" / "medium" / "low"
-print(result["report"])           # 자연어 조사 리포트
+print(result.action_decision)  # "block" / "review" / "approve"
+print(result.risk_level)       # "high" / "medium" / "low"
+print(result.report)           # 자연어 조사 리포트
 ```
 
 ---

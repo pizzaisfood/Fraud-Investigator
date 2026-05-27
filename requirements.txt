@@ -44,4 +44,5 @@ langchain-google-genai>=2.0.0
 lightgbm>=4.0.0
 numpy>=1.26.0
 pandas>=2.0.0
+plotly>=5.20.0
 streamlit>=1.32.0
