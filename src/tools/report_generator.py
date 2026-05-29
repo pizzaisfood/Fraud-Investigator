@@ -1,5 +1,6 @@
 import os
 import sys
+from typing import List, Dict, Any, Optional
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -21,30 +22,87 @@ _llm = ChatOpenAI(
 
 def report_generator(state: FraudState) -> dict:
     """
-    Tool 8: Report Generator
-    - 역할: 모든 분석 결과를 종합해 자연어 조사 리포트를 생성한다.
-    - LLM 사용: O (GPT-4o로 자연어 리포트 작성)
-    - 읽는 State 필드: 전체 (transaction ~ action_decision)
+    Tool 8: Report Generator (개선판)
+    - 읽는 State 필드: 기존 + rag_evidence (NEW)
     - 쓰는 State 필드: report
     """
-    prompt = _build_prompt(state)
-
+    # 기존 프롬프트 생성
+    base_prompt = _build_prompt(state)
+    
+    # NEW: RAG 증거 섹션 추가
+    rag_evidence = state.get("rag_evidence")
+    rag_section = _build_rag_section(rag_evidence)
+    
+    # 통합 프롬프트
+    enhanced_prompt = f"{base_prompt}\n\n{rag_section}"
+    
     try:
         messages = [
             SystemMessage(
-                content=(
-                    "당신은 금융 사기 조사 전문가입니다. "
-                    "분석 데이터를 바탕으로 명확하고 전문적인 한국어 조사 리포트를 작성합니다."
-                )
+                content=_get_enhanced_system_prompt()  # NEW: 개선된 시스템 프롬프트
             ),
-            HumanMessage(content=prompt),
+            HumanMessage(content=enhanced_prompt),
         ]
         response = _llm.invoke(messages)
         return {"report": response.content}
-
+    
     except Exception as e:
         return {"report": f"[리포트 생성 실패: {e}]"}
 
+
+def _get_enhanced_system_prompt() -> str:
+    """개선된 시스템 프롬프트 (RAG 자료 신뢰도 원칙 포함)"""
+    return """당신은 금융 사기 조사 전문가입니다.
+
+### RAG 참고 자료 활용 원칙:
+1. **역할 명확화**: RAG 자료는 최종 판단 근거가 아니라 "참고 정보"
+2. **신뢰도 표시**: 모든 참고 자료에 유사도, 출처, 국내/해외 구분 명시
+3. **표현 조심**: 
+   - 피하기: "증거", "판단 근거", "결정적"
+   - 사용하기: "유사 사례 발견", "패턴 언급됨", "참고할 만함"
+4. **국내/해외 구분**:
+   - 해외 자료: "해외 지급결제 사기 보고서에서 유사한 패턴이 언급됨"
+   - 국내 자료: "국내 사기 DB에서 동일 가맹점 관련 사례 발견"
+
+### 리포트 구조:
+1. 종합 판단 (Rule/ML 중심)
+2. 주요 위험 지표
+3. 정상/이상 요소 비교
+4. [참고] 유사 사례 (rag_evidence 있을 시)
+5. 권고 조치"""
+
+
+def _build_rag_section(rag_evidence: Optional[List[Dict]]) -> str:
+    """RAG 증거를 리포트용 섹션으로 포맷팅"""
+    
+    if not rag_evidence:
+        return ""
+    
+    sections = []
+    sections.append("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+    sections.append("[참고] 유사 사례 및 동향")
+    sections.append("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
+    
+    for i, evidence in enumerate(rag_evidence, 1):
+        source = evidence.get("source", "알 수 없음")
+        snippet = evidence.get("snippet", "")
+        similarity = evidence.get("similarity", 0)
+        tags = evidence.get("tags", [])
+        
+        # 국내/해외 표시
+        source_label = "【국내】" if "내부" in source or "DB" in source else "【해외】"
+        
+        sections.append(f"""【{i}】 {source_label} {source}
+  • 유사도: {similarity:.0%}
+  • 태그: {', '.join(tags) if tags else "미분류"}
+  • 내용: {snippet}
+
+""")
+    
+    sections.append("※ 위 참고 자료는 조사 판단을 돕기 위한 정보입니다. "
+                   "최종 판단은 Rule/ML 점수와 전문가 검토에 따릅니다.")
+    
+    return "\n".join(sections)
 
 def _build_prompt(state: FraudState) -> str:
     """
