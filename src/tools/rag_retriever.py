@@ -1,6 +1,8 @@
 # src/tools/rag_retriever.py
 
 from typing import Optional, List, Dict, Any
+
+from typer.cli import state
 from src.state import FraudState
 from src.tools.rag.pattern_context_builder import _build_rag_query_strategy
 from src.tools.rag.document_retriever import search_cases
@@ -23,12 +25,21 @@ def rag_retriever(state: FraudState) -> dict:
     try:
         # Step 1: 패턴 감지 & 쿼리 전략 수립
         query_strategy = _build_rag_query_strategy(state)
-        
-        # Step 2: 사례 검색 (항상 수행)
-        case_results = search_cases(
-            query=query_strategy["case_query"],
-            top_k=5
-        )
+
+
+        # Step 2: 사례 검색 (조건부)
+        risk_level = state.get("risk_level", "unknown")
+        if risk_level == "low":
+            # If no law search is required, skip RAG entirely
+            if not (query_strategy.get("should_search_law") and query_strategy.get("law_query")):
+                return {"rag_evidence": None}
+            # else: skip case search but allow law_results below by setting empty case_results
+            case_results = []
+        else:
+            case_results = search_cases(
+                query=query_strategy["case_query"],
+                top_k=5
+    )
         
         # Step 3: 법령 검색 (조건부)
         law_results = []
@@ -109,7 +120,6 @@ def _format_rag_evidence(
         evidence_list.append({
             "source": f"법령: {law.get('law_name', '')}",
             "snippet": law_snippet,
-            "similarity": 0.95,  # 법령은 정확도 높으므로 높은 점수
             "tags": ["legislation"],
         })
     

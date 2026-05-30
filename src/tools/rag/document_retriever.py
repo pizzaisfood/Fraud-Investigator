@@ -60,7 +60,7 @@ def search_cases(query: str, top_k: int = 5) -> List[Dict[str, Any]]:
         formatted_results.append({
             "title": metadata.get("title", "제목 없음"),
             "source": metadata.get("source", "알 수 없음"),
-            "snippet": doc.page_content[:300],  # 처음 300자
+            "snippet": doc.page_content,
             "similarity": similarity_score,
             "tags": metadata.get("tags", []),
             "year": metadata.get("year", 0),

@@ -4,6 +4,7 @@ from typing import List, Dict, Any, Optional
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from anyio import Path
 from dotenv import load_dotenv
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_openai import ChatOpenAI
@@ -12,11 +13,20 @@ from src.state import FraudState
 
 load_dotenv()
 
-_llm = ChatOpenAI(
-    model="gpt-4o",
+# _llm = ChatOpenAI(
+#     model="gpt-4o",
+#     temperature=0.3,
+#     openai_api_key=os.environ.get("GENAI_TEAM09"),
+# )
+
+from langchain_mistralai import ChatMistralAI
+_llm = ChatMistralAI(
+    model="mistral-small-latest",
     temperature=0.3,
-    openai_api_key=os.environ.get("GENAI_TEAM09"),
+    mistral_api_key=os.environ.get("MISTRAL_API_KEY"),
 )
+
+
 # temperature=0.3: 판단(Tool 7)보다는 약간 높게 → 자연스러운 문장 생성
 
 
@@ -34,7 +44,8 @@ def report_generator(state: FraudState) -> dict:
     rag_section = _build_rag_section(rag_evidence)
     
     # 통합 프롬프트
-    enhanced_prompt = f"{base_prompt}\n\n{rag_section}"
+    # enhanced_prompt = f"{base_prompt}\n\n{rag_section}"
+    enhanced_prompt = base_prompt  
     
     try:
         messages = [
@@ -44,6 +55,25 @@ def report_generator(state: FraudState) -> dict:
             HumanMessage(content=enhanced_prompt),
         ]
         response = _llm.invoke(messages)
+        
+        # 디버깅: 프롬프트와 모델 응답을 파일로 저장
+
+        import time 
+        tx_id = state.get("tx_features", {}).get("trans_num", "unknown")
+        timestamp = int(time.time())
+        filename = f"debug_report_prompt_{tx_id}_{timestamp}.txt"
+
+        with open(filename, "w", encoding="utf-8") as f:
+            f.write("\n\n=== 인간 메시지 (프롬프트) ===\n")
+            f.write(enhanced_prompt)
+            f.write("\n\n=== 모델 응답 ===\n")
+            f.write(response.content)
+
+        saved_path = str(Path(filename).resolve())
+        print(f"{filename} 저장 위치: {saved_path}")
+
+        saved_path = str(Path("debug_report_prompt.txt").resolve())
+        print(f"debug_report_prompt.txt 저장 위치: {saved_path}")
         return {"report": response.content}
     
     except Exception as e:
@@ -152,7 +182,8 @@ def _build_prompt(state: FraudState) -> str:
     if rag_evidence:
         rag_lines = "\n".join(
             f"  - [{e.get('source', '?')}] (유사도: {e.get('similarity', 0):.2f})\n"
-            f"    {e.get('snippet', '')[:200]}"
+            f" {e.get('snippet', '')}"
+            # f"    {e.get('snippet', '')[:200]}"
             for e in rag_evidence
         )
         rag_section = f"\n[7. 유사 사기 사례 (RAG 검색)]\n{rag_lines}"

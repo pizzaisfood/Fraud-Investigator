@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from src.state import FraudState
 
 
@@ -15,9 +17,21 @@ def _build_rag_query_strategy(state: FraudState) -> dict:
     """
     
     tx_features = state.get("tx_features") or {}
-    merchant_risk = state.get("merchant_risk") or {}
+    customer_profile = state.get("customer_profile") or {}
     velocity_signals = state.get("velocity_signals") or {}
     transaction = state.get("transaction") or {}
+
+    amount = tx_features.get("amount") or transaction.get("amt") or transaction.get("amount") or 0
+    category = tx_features.get("category") or transaction.get("category") or ""
+    hour = tx_features.get("hour_of_day")
+    month = None
+
+    tx_time = transaction.get("trans_date_trans_time")
+    if isinstance(tx_time, str):
+        try:
+            month = datetime.strptime(tx_time, "%Y-%m-%d %H:%M:%S").month
+        except ValueError:
+            month = None
     
     query_strategy = {
         "case_query": "",
@@ -27,61 +41,83 @@ def _build_rag_query_strategy(state: FraudState) -> dict:
     }
     
     # ─────────────────────────────────────────────────────────
-    # 패턴 1: 소액 반복 실패 (Velocity 이상)
+    # 패턴 1: 시간대 (T1)
     # ─────────────────────────────────────────────────────────
-    if velocity_signals.get("velocity_flag") and velocity_signals.get("txn_last_1h", 0) >= 3:
+    if hour in {22, 23, 0, 1, 2, 3}:
         query_strategy["case_query"] = (
-            f"카드 테스팅 소액 거래 반복 {transaction.get('merchant', '')} "
-            f"{transaction.get('category', '')}"
+            f"time 야간 새벽 {hour}시 {transaction.get('merchant', '')} {category}"
         )
-        query_strategy["priority_tags"] = ["velocity", "card_testing"]
-    
+        query_strategy["priority_tags"] = ["time", "night"]
+
     # ─────────────────────────────────────────────────────────
-    # 패턴 2: 평소 대비 고액 + 환금성 높은 업종
+    # 패턴 2: 계절성 시간 (T2)
     # ─────────────────────────────────────────────────────────
-    elif (tx_features.get("is_amount_anomalous") and 
-          transaction.get("category") in ["jewelry", "giftcard", "luxury"]):
+    elif month in {10, 11}:
         query_strategy["case_query"] = (
-            f"고액 거래 {transaction.get('category')} 가맹점 "
-            f"사기 탐지 {transaction.get('amount', 0)}"
+            f"time seasonal 가을 연말 {month}월 {transaction.get('merchant', '')} {category}"
         )
-        query_strategy["priority_tags"] = ["large_amount", "merchant_risk"]
-    
+        query_strategy["priority_tags"] = ["time", "seasonal"]
+
     # ─────────────────────────────────────────────────────────
-    # 패턴 3: 새벽/야간 거래
+    # 패턴 3: 고액 (A1)
     # ─────────────────────────────────────────────────────────
-    elif tx_features.get("is_night_transaction"):
+    elif amount > 300:
         query_strategy["case_query"] = (
-            f"야간 새벽 거래 {transaction.get('merchant', '')} "
-            f"{transaction.get('category', '')}"
+            f"amount high_value 고액 거래 {amount} {transaction.get('merchant', '')} {category}"
         )
-        query_strategy["priority_tags"] = ["night_transaction"]
-    
+        query_strategy["priority_tags"] = ["amount", "high_value"]
+
     # ─────────────────────────────────────────────────────────
-    # 패턴 4: 비정상적 지역 거래
+    # 패턴 4: 소액 / 카드테스팅 (A2)
     # ─────────────────────────────────────────────────────────
-    elif tx_features.get("is_unusual_location"):
+    elif amount < 10:
         query_strategy["case_query"] = (
-            f"해외 거래 비정상 지역 {transaction.get('state', '')} "
-            f"{transaction.get('city', '')}"
+            f"amount low_value card_testing 소액 거래 {amount} {transaction.get('merchant', '')} {category}"
         )
-        query_strategy["priority_tags"] = ["unusual_location"]
-    
+        query_strategy["priority_tags"] = ["amount", "low_value", "card_testing"]
+
+    # ─────────────────────────────────────────────────────────
+    # 패턴 5: 가맹점 유형 (M1~M3)
+    # ─────────────────────────────────────────────────────────
+    elif category in {"shopping_net", "misc_net"}:
+        query_strategy["case_query"] = (
+            f"mcc ecommerce digital_goods 쇼핑 디지털 상품 {transaction.get('merchant', '')} {category}"
+        )
+        query_strategy["priority_tags"] = ["mcc", "ecommerce", "digital_goods"]
+    elif category == "travel":
+        query_strategy["case_query"] = (
+            f"mcc hotel travel 호텔 여행 {transaction.get('merchant', '')} {category}"
+        )
+        query_strategy["priority_tags"] = ["mcc", "hotel", "travel"]
+    elif category == "entertainment":
+        query_strategy["case_query"] = (
+            f"mcc gaming gambling 엔터테인먼트 게임 도박 {transaction.get('merchant', '')} {category}"
+        )
+        query_strategy["priority_tags"] = ["mcc", "gaming", "gambling"]
+
+    # ─────────────────────────────────────────────────────────
+    # 패턴 6: CNP / 원격 거래 (L1)
+    # ─────────────────────────────────────────────────────────
+    elif "_net" in category:
+        query_strategy["case_query"] = (
+            f"location remote CNP 원격 거래 {transaction.get('merchant', '')} {category}"
+        )
+        query_strategy["priority_tags"] = ["location", "remote", "cnp"]
+
     # ─────────────────────────────────────────────────────────
     # 기본 쿼리 (패턴 미감지)
     # ─────────────────────────────────────────────────────────
     else:
         query_strategy["case_query"] = (
-            f"{transaction.get('merchant', '')} "
-            f"{transaction.get('category', '')} 사기 사례"
+            f"{transaction.get('merchant', '')} {category} 사기 사례"
         )
         query_strategy["priority_tags"] = []
     
     # ─────────────────────────────────────────────────────────
     # 법령 검색 조건: 매우 비정상적인 거래 + 고위험
     # ─────────────────────────────────────────────────────────
-    rule_score = state.get("rule_score", 0)
-    ml_score = state.get("ml_score", 0)
+    rule_score = state.get("rule_score") or 0
+    ml_score = state.get("ml_score") or 0
     
     if rule_score > 70 or ml_score > 0.85:  # 매우 고위험
         query_strategy["should_search_law"] = True
