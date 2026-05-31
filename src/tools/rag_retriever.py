@@ -2,7 +2,6 @@
 
 from typing import Optional, List, Dict, Any
 
-from typer.cli import state
 from src.state import FraudState
 from src.tools.rag.pattern_context_builder import _build_rag_query_strategy
 from src.tools.rag.document_retriever import search_cases
