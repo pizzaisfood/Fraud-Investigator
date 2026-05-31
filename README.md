@@ -117,7 +117,7 @@ FraudInvestigator/
 │   └── RAG_INTERFACE.md            # RAG 결과 연결 가이드
 ├── tests/
 │   ├── test_action_decision_maker.py   # Tool 7: 4-tier 판단 로직 (13개)
-│   ├── test_rule_based_scorer.py       # Tool 5: R001~R007 룰 경계값 (20개)
+│   ├── test_rule_based_scorer.py       # Tool 5: 6개 룰 (R001, R002, R004~R007) 경계값 (18개)
 │   └── test_ml_fraud_scorer.py         # Tool 6: Graceful Degradation (2개 + 2 skipped)
 ├── test_pipeline.py                # 3개 케이스 파이프라인 테스트
 ├── make_report.py                  # 발표용 HTML 리포트 생성
@@ -226,7 +226,7 @@ python -m pytest tests/ -v
 | 파일 | 대상 | 케이스 |
 |------|------|--------|
 | `test_action_decision_maker.py` | Tool 7 — 4-tier 판단 경계값 | 13개 |
-| `test_rule_based_scorer.py` | Tool 5 — R001~R007 룰 발동 조건 | 20개 |
+| `test_rule_based_scorer.py` | Tool 5 — 6개 룰 (R001, R002, R004~R007) 발동 조건 | 18개 |
 | `test_ml_fraud_scorer.py` | Tool 6 — 모델 없을 때 Graceful Degradation | 2개 + 2 skipped |
 
 ---

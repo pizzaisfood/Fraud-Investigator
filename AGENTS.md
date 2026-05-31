@@ -31,7 +31,7 @@ python make_report.py     # HTML 리포트 생성 + 브라우저 자동 오픈
         ├──→ [2] customer_profile_tool  # CSV 조회 + Z-score 계산  ┐ 병렬
         └──→ [3] merchant_risk_assessor # 가맹점 위험도 조회        ┘
               ├──→ [4] velocity_checker   # 단시간 다중 거래 감지 ┐ 병렬
-              │         → [5] rule_based_scorer # FDS 룰 R001~R007┘
+              │         → [5] rule_based_scorer # FDS 룰 (R001, R002, R004~R007 — R003 폐기)┘
               └──→ [6] ml_fraud_scorer   # LightGBM 사기 확률 예측
   → [7] action_decision_maker     # 최종 판단 (deterministic 4-tier 룰 — LLM 없음)
   → [8] report_generator          # 자연어 리포트 생성 (GPT-4o, 유일한 LLM 호출)

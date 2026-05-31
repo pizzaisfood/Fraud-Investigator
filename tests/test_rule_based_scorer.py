@@ -1,25 +1,23 @@
 """
 Tool 5 (rule_based_scorer) 단위 테스트.
 
-R001~R007 룰 조건 함수와 점수 누적 로직을 검증한다.
+ML 팀 fds_rules.csv (룰 엔진 v3) 기준으로 검증한다.
+6개 룰 체제: R001, R002, R004, R005, R006, R007 (R003 폐기).
 
-※ 테스트 환경 주의사항:
-    data/fds_rules.csv 파일이 없을 때 _rules_meta = {} 로 초기화된다.
-    CSV가 없으면 각 룰의 점수가 기본값 10으로 처리된다.
-    → 이 테스트는 CSV 없이도 통과하도록 설계되어 있다 (Graceful Degradation 검증 포함).
+점수 검증은 _rules_meta(= fds_rules.csv 로드 결과)를 직접 참조해
+CSV 유무와 무관하게 통과하도록 설계한다.
+  - CSV 없으면: 각 룰 기본 10점
+  - CSV 있으면: R001=25, R002=10, R004=25, R005=20, R006=15, R007=2
 
 실행: python -m pytest tests/ -v
 """
 
 import pytest
-from src.tools.rule_based_scorer import rule_based_scorer
+from src.tools.rule_based_scorer import rule_based_scorer, _rules_meta
 
 
 def _state(tx_features=None, customer_profile=None, merchant_risk=None, velocity_signals=None):
-    """
-    최소 FraudState 빌더 — 필요한 필드만 채운다.
-    나머지는 빈 딕셔너리({})로 채워서 KeyError가 나지 않게 한다.
-    """
+    """최소 FraudState 빌더 — 필요한 필드만 채우고 나머지는 빈 dict."""
     return {
         "transaction": {},
         "tx_features": tx_features or {},
@@ -29,151 +27,152 @@ def _state(tx_features=None, customer_profile=None, merchant_risk=None, velocity
     }
 
 
-# ── 아무 룰도 발동 안 하는 기본 케이스 ────────────────────────────────
+def _expected_score(rule_ids):
+    """
+    발동한 룰들의 점수 합을 계산한다.
+    fds_rules.csv가 있으면 그 점수를, 없으면 기본 10점을 사용한다.
+    → 테스트가 CSV 유무에 흔들리지 않게 하는 방어적 패턴.
+    """
+    return round(sum(float(_rules_meta.get(r, {}).get("score", 10)) for r in rule_ids), 2)
 
+
+# ── 기본: 아무 룰도 발동 안 함 ──────────────────────────────────────
 def test_no_rules_on_clean_state():
-    """모든 필드가 비어있으면 룰 발동 없음, 점수 0"""
     result = rule_based_scorer(_state())
     assert result["rule_hits"] == []
     assert result["rule_score"] == 0.0
 
 
-# ── R001: 거래금액이 신용한도의 80% 초과 ──────────────────────────────
-
-def test_R001_fires_when_amount_exceeds_80_percent():
-    """900 > 1000 * 0.8 = 800 → R001 발동"""
+# ── R001: 고액 이상거래 (amount >= avg_amount_30d * 5) ───────────────
+def test_R001_fires_at_5x_average():
+    # avg=100 → 임계 500. ×5는 정수배라 float 오차 없음 → 경계값(500) 테스트 가능.
     result = rule_based_scorer(_state(
-        customer_profile={"credit_limit": 1000},
-        tx_features={"amount": 900},
+        customer_profile={"avg_amount_30d": 100.0},
+        tx_features={"amount": 500.0},
     ))
     assert "R001" in result["rule_hits"]
 
 
-def test_R001_does_not_fire_at_exact_boundary():
-    """800 은 800 을 초과하지 않음 (strict >) → 발동 안 함"""
+def test_R001_does_not_fire_below_5x():
     result = rule_based_scorer(_state(
-        customer_profile={"credit_limit": 1000},
-        tx_features={"amount": 800},
+        customer_profile={"avg_amount_30d": 100.0},
+        tx_features={"amount": 499.0},
     ))
     assert "R001" not in result["rule_hits"]
 
 
-def test_R001_does_not_fire_when_no_credit_limit():
-    """credit_limit=0 이면 limit > 0 조건 실패 → 발동 안 함 (ZeroDivisionError 방지)"""
+def test_R001_does_not_fire_when_no_average():
+    # avg=0 (프로필 없음) → 가드(avg>0)에 막혀 발동 안 함
     result = rule_based_scorer(_state(
-        customer_profile={"credit_limit": 0},
-        tx_features={"amount": 999},
+        customer_profile={"avg_amount_30d": 0},
+        tx_features={"amount": 9999.0},
     ))
     assert "R001" not in result["rule_hits"]
 
 
-# ── R002: 새벽/야간 시간대 거래 ───────────────────────────────────────
-
-def test_R002_fires_on_night_transaction():
-    """is_night_transaction=True → R002 발동"""
+# ── R002: 비정상 시간대 ───────────────────────────────────────────────
+def test_R002_fires_on_night():
     result = rule_based_scorer(_state(tx_features={"is_night_transaction": True}))
     assert "R002" in result["rule_hits"]
 
 
 def test_R002_does_not_fire_on_daytime():
-    """is_night_transaction=False → 발동 안 함"""
     result = rule_based_scorer(_state(tx_features={"is_night_transaction": False}))
     assert "R002" not in result["rule_hits"]
 
 
-# ── R003: 평소 이용 카테고리 외 거래 ─────────────────────────────────
-
-def test_R003_fires_on_unusual_category():
-    result = rule_based_scorer(_state(customer_profile={"is_unusual_category": True}))
-    assert "R003" in result["rule_hits"]
-
-
-def test_R003_does_not_fire_on_usual_category():
-    result = rule_based_scorer(_state(customer_profile={"is_unusual_category": False}))
+# ── R003 폐기 확인 ────────────────────────────────────────────────────
+def test_R003_never_fires():
+    # R003은 ML팀 결정으로 폐기됨 (합성데이터에서 city==home_city 100% 매칭 문제).
+    # 과거 R003 트리거 신호(is_unusual_category)를 줘도 R003은 절대 등장하면 안 된다.
+    result = rule_based_scorer(_state(
+        customer_profile={"is_unusual_category": True},
+    ))
     assert "R003" not in result["rule_hits"]
 
 
-# ── R004: 고위험 가맹점 ────────────────────────────────────────────────
-
+# ── R004: 고위험 가맹점 ───────────────────────────────────────────────
 def test_R004_fires_on_high_risk_merchant():
     result = rule_based_scorer(_state(merchant_risk={"is_high_risk": True}))
     assert "R004" in result["rule_hits"]
 
 
-# ── R005: 단시간 다중 거래 (velocity) ────────────────────────────────
-
+# ── R005: 짧은 시간 반복 거래 ────────────────────────────────────────
 def test_R005_fires_on_velocity_flag():
     result = rule_based_scorer(_state(velocity_signals={"velocity_flag": True}))
     assert "R005" in result["rule_hits"]
 
 
-# ── R006: Z-score 이상 ────────────────────────────────────────────────
-
-def test_R006_fires_when_z_score_exceeds_2():
-    """z_score = 2.5 → |2.5| > 2.0 → R006 발동"""
-    result = rule_based_scorer(_state(customer_profile={"amount_z_score": 2.5}))
+# ── R006: 한도 근접 거래 (amount >= credit_limit * 0.7) ──────────────
+# 주의: ×0.7은 이진 부동소수점으로 정확히 떨어지지 않는다 (700*0.7 = 489.9999...).
+#       따라서 경계값(정확히 70%) 테스트는 피하고, 명확히 위/아래인 값만 쓴다.
+def test_R006_fires_clearly_above_70pct():
+    result = rule_based_scorer(_state(
+        customer_profile={"credit_limit": 1000.0},
+        tx_features={"amount": 800.0},  # 800 >= 700 명확
+    ))
     assert "R006" in result["rule_hits"]
 
 
-def test_R006_fires_on_negative_z_score():
-    """z_score = -3.0 → |−3.0| > 2.0 → R006 발동 (절댓값 체크)"""
-    result = rule_based_scorer(_state(customer_profile={"amount_z_score": -3.0}))
-    assert "R006" in result["rule_hits"]
-
-
-def test_R006_does_not_fire_at_boundary():
-    """z_score = 2.0 → |2.0| > 2.0 이 False → 발동 안 함 (strict >)"""
-    result = rule_based_scorer(_state(customer_profile={"amount_z_score": 2.0}))
+def test_R006_does_not_fire_clearly_below_70pct():
+    result = rule_based_scorer(_state(
+        customer_profile={"credit_limit": 1000.0},
+        tx_features={"amount": 600.0},  # 600 < 700 명확
+    ))
     assert "R006" not in result["rule_hits"]
 
 
-# ── R007: 차지백 비율 높은 가맹점 ────────────────────────────────────
+def test_R006_does_not_fire_when_no_limit():
+    result = rule_based_scorer(_state(
+        customer_profile={"credit_limit": 0},
+        tx_features={"amount": 9999.0},
+    ))
+    assert "R006" not in result["rule_hits"]
 
-def test_R007_fires_on_high_chargeback():
-    result = rule_based_scorer(_state(merchant_risk={"is_high_chargeback": True}))
+
+# ── R007: 평소 미사용 카테고리 (옛 R003 역할 흡수) ──────────────────
+def test_R007_fires_on_unusual_category():
+    result = rule_based_scorer(_state(customer_profile={"is_unusual_category": True}))
     assert "R007" in result["rule_hits"]
 
 
-# ── 점수 누적 + 다중 룰 ────────────────────────────────────────────────
+def test_R007_does_not_fire_on_usual_category():
+    result = rule_based_scorer(_state(customer_profile={"is_unusual_category": False}))
+    assert "R007" not in result["rule_hits"]
 
+
+# ── 점수 누적 + 다중 룰 ───────────────────────────────────────────────
 def test_multiple_rules_accumulate_score():
-    """
-    R002 + R003 동시 발동.
-    CSV 없으면 각 룰 점수 = 10 → 합계 20.0.
-    이 테스트는 CSV 없이도 동작하도록 설계됨 (Graceful Degradation).
-    """
+    # R002(야간) + R007(미사용 카테고리) 동시 발동
     result = rule_based_scorer(_state(
-        tx_features={"is_night_transaction": True},       # R002
-        customer_profile={"is_unusual_category": True},  # R003
+        tx_features={"is_night_transaction": True},
+        customer_profile={"is_unusual_category": True},
     ))
-    assert "R002" in result["rule_hits"]
-    assert "R003" in result["rule_hits"]
-    # CSV 없으면 각 룰 기본점수 10 → 총 20.0
-    assert result["rule_score"] == 20.0
+    assert set(result["rule_hits"]) == {"R002", "R007"}
+    assert result["rule_score"] == _expected_score(["R002", "R007"])
 
 
-def test_all_rules_fire():
-    """
-    R001~R007 전부 발동시키는 케이스.
-    7개 룰 × 기본 10점 = 70.0.
-    """
+def test_all_six_rules_fire():
+    # 6개 룰을 모두 발동시키는 케이스.
+    # amount=500: R001 임계(avg100*5=500) 충족 + R006 임계(limit700*0.7≈490) 충족
     result = rule_based_scorer(_state(
         tx_features={
-            "amount": 900,                   # R001 조건
+            "amount": 500.0,
             "is_night_transaction": True,    # R002
         },
         customer_profile={
-            "credit_limit": 1000,           # R001 조건
-            "is_unusual_category": True,    # R003
-            "amount_z_score": 3.0,          # R006
+            "avg_amount_30d": 100.0,         # R001 임계 500
+            "credit_limit": 700.0,           # R006 임계 ≈490
+            "is_unusual_category": True,     # R007
         },
         merchant_risk={
-            "is_high_risk": True,           # R004
-            "is_high_chargeback": True,     # R007
+            "is_high_risk": True,            # R004
         },
         velocity_signals={
-            "velocity_flag": True,          # R005
+            "velocity_flag": True,           # R005
         },
     ))
-    assert set(result["rule_hits"]) == {"R001", "R002", "R003", "R004", "R005", "R006", "R007"}
-    assert result["rule_score"] == 70.0
+    assert set(result["rule_hits"]) == {"R001", "R002", "R004", "R005", "R006", "R007"}
+    assert result["rule_score"] == _expected_score(
+        ["R001", "R002", "R004", "R005", "R006", "R007"]
+    )
