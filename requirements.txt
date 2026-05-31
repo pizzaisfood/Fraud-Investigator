@@ -8,6 +8,7 @@ langgraph==1.2.0
 pandas==3.0.2
 joblib==1.5.3
 scikit-learn==1.8.0
+lightgbm==4.6.0
 
 # 기존 의존성
 annotated-types==0.7.0

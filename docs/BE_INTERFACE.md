@@ -74,7 +74,7 @@ FastAPI가 `TransactionInput`을 자동으로 JSON 파싱하고, 반환값을 �
 | `amt <= 0` | Pydantic이 422 ValidationError 자동 발생 |
 | 필수 필드 누락 | Pydantic이 422 ValidationError 자동 발생 |
 | ML 모델 파일 없음 | `ml_score = None`으로 파이프라인 정상 진행 |
-| GPT API 호출 실패 | `risk_level="medium"`, `action_decision="review"` 기본값 반환 |
+| GPT API 호출 실패 | `risk_level`·`action_decision`은 Tool 7 결과 그대로 유지, `report`만 `"[리포트 생성 실패: ...]"` (최대 3회 재시도 후) |
 
 ---
 
