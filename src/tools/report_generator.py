@@ -6,6 +6,8 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from dotenv import load_dotenv
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_openai import ChatOpenAI
+from openai import APIConnectionError, APITimeoutError, RateLimitError
+from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 from src.state import FraudState
 
@@ -18,6 +20,33 @@ _llm = ChatOpenAI(
 )
 # temperature=0.3: 판단(Tool 7)보다는 약간 높게 → 자연스러운 문장 생성
 
+# ── 재시도 가능한 에러 유형 정의 ──────────────────────────────────────
+# 네트워크 불안정 / 요청 과부하 → 잠깐 기다리면 해결될 가능성 있음
+# AuthenticationError, BadRequestError 같은 구조적 오류는 포함하지 않는다.
+# 재시도해도 같은 오류가 반복될 뿐이므로 API 비용만 낭비됨.
+_RETRYABLE_ERRORS = (RateLimitError, APIConnectionError, APITimeoutError)
+
+
+@retry(
+    retry=retry_if_exception_type(_RETRYABLE_ERRORS),
+    # 언제 재시도할지: 위에 정의한 3가지 에러가 날 때만
+    stop=stop_after_attempt(3),
+    # 최대 몇 번: 총 3번 시도 (첫 호출 1번 + 재시도 2번)
+    wait=wait_exponential(multiplier=1, min=2, max=10),
+    # 얼마나 기다렸다 재시도할지:
+    #   1번 실패 → 2초 대기 → 재시도
+    #   2번 실패 → 4초 대기 → 재시도
+    #   3번 실패 → 포기, 예외 re-raise
+    # wait_exponential: 실패할수록 대기 시간이 지수적으로 늘어남 (서버 과부하 방지)
+    reraise=True,
+    # 모든 재시도가 실패했을 때: 마지막 예외를 그대로 다시 던짐
+    # (reraise=True 없으면 tenacity 자체 예외로 감싸서 디버깅이 어려워짐)
+)
+def _invoke_with_retry(messages: list) -> str:
+    """GPT-4o 호출 — 재시도 정책이 적용된 내부 함수."""
+    response = _llm.invoke(messages)
+    return response.content
+
 
 def report_generator(state: FraudState) -> dict:
     """
@@ -26,23 +55,26 @@ def report_generator(state: FraudState) -> dict:
     - LLM 사용: O (GPT-4o로 자연어 리포트 작성)
     - 읽는 State 필드: 전체 (transaction ~ action_decision)
     - 쓰는 State 필드: report
+    - 재시도: RateLimitError / APIConnectionError / APITimeoutError → 최대 3회
     """
     prompt = _build_prompt(state)
 
+    messages = [
+        SystemMessage(
+            content=(
+                "당신은 금융 사기 조사 전문가입니다. "
+                "분석 데이터를 바탕으로 명확하고 전문적인 한국어 조사 리포트를 작성합니다."
+            )
+        ),
+        HumanMessage(content=prompt),
+    ]
+
     try:
-        messages = [
-            SystemMessage(
-                content=(
-                    "당신은 금융 사기 조사 전문가입니다. "
-                    "분석 데이터를 바탕으로 명확하고 전문적인 한국어 조사 리포트를 작성합니다."
-                )
-            ),
-            HumanMessage(content=prompt),
-        ]
-        response = _llm.invoke(messages)
-        return {"report": response.content}
+        content = _invoke_with_retry(messages)
+        return {"report": content}
 
     except Exception as e:
+        # 재시도 3번 후에도 실패하거나 재시도 불가 에러 (AuthenticationError 등)
         return {"report": f"[리포트 생성 실패: {e}]"}
 
 
