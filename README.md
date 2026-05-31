@@ -171,6 +171,6 @@ print(result["report"])           # 자연어 조사 리포트
 |------|------|
 | LLM 파이프라인 · 팀장 · 발표 | 이정훈 |
 | RAG | - |
-| PM · LLM-RAG 연결 | - |
+| PM · LLM-RAG 연결 | 채주형 |
 | 백엔드 · 프론트엔드 | - |
 | ML 모델 (LightGBM) | - |
