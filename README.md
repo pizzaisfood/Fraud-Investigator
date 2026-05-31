@@ -107,7 +107,7 @@ source .venv/bin/activate      # macOS/Linux
 ### 3. 패키지 설치
 
 ```bash
-pip install -r requirements.txt
+pip install -r requirements.txt --extra-index-url https://download.pytorch.org/whl/cpu
 ```
 
 ### 4. 환경변수 설정
