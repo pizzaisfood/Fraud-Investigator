@@ -4,27 +4,15 @@ import sys
 from datetime import datetime
 from typing import Callable, Optional
 
+from dotenv import load_dotenv
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(ROOT)
 
-from dotenv import load_dotenv
-
 load_dotenv(os.path.join(ROOT, ".env"))
 
-_graph = None
-
-_KEYS = [
-    "risk_level",
-    "action_decision",
-    "rule_hits",
-    "rule_score",
-    "ml_score",
-    "report",
-    "tx_features",
-    "customer_profile",
-    "merchant_risk",
-    "velocity_signals",
-]
+from src.api_interface import investigate_transaction
+from src.schemas import FraudInvestigationResult, TransactionInput
 
 NODE_DEFINITIONS = [
     ("transaction_analyzer", "거래 분석", "tx_features"),
@@ -39,9 +27,7 @@ NODE_DEFINITIONS = [
 
 
 def _offline_mode():
-    if os.getenv("OFFLINE_TEST", "").lower() in ("1", "true", "yes"):
-        return True
-    return not os.getenv("GOOGLE_API_KEY") and not os.getenv("GEMINI_API_KEY")
+    return os.getenv("OFFLINE_TEST", "").lower() in ("1", "true", "yes")
 
 
 def _mock_action_decision(state: dict) -> dict:
@@ -94,26 +80,25 @@ def _setup_offline_graph():
     rg.report_generator = _mock_report
 
 
-def _get_graph():
-    global _graph
-    if _graph is not None:
-        return _graph
-
+def ensure_runtime_ready():
+    """UI trace 실행 전 오프라인 mock 등 런타임 준비."""
     if _offline_mode():
         _setup_offline_graph()
 
-    from src.graph import fraud_graph
 
-    _graph = fraud_graph
-    return _graph
-
-
-def _ensure_runtime_ready():
-    _get_graph()
+def _result_from_state(state: dict) -> dict:
+    return FraudInvestigationResult(
+        risk_level=state.get("risk_level", "unknown"),
+        action_decision=state.get("action_decision", "review"),
+        report=state.get("report", "[리포트 생성 실패]"),
+        rule_hits=state.get("rule_hits") or [],
+        rule_score=state.get("rule_score") or 0.0,
+        ml_score=state.get("ml_score"),
+    ).model_dump()
 
 
 def _get_pipeline_nodes():
-    _ensure_runtime_ready()
+    ensure_runtime_ready()
     from src.tools.action_decision_maker import action_decision_maker
     from src.tools.customer_profile_tool import customer_profile_tool
     from src.tools.merchant_risk_assessor import merchant_risk_assessor
@@ -145,19 +130,15 @@ def _get_pipeline_nodes():
     ]
 
 
-def _select_result(state: dict) -> dict:
-    return {k: state.get(k) for k in _KEYS}
-
-
 def _build_request_record(
     transaction: dict, state: dict, node_traces: list[dict], request_id: Optional[str] = None
 ) -> dict:
     return {
-        "request_id": request_id or datetime.now().strftime("REQ-%Y%m%d-%H%M%S"),
+        "request_id": request_id or datetime.now().strftime("REQ-%Y%m%d-%H%M%S-%f"),
         "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "status": "completed",
         "transaction": transaction,
-        "result": _select_result(state),
+        "result": _result_from_state(state),
         "node_traces": node_traces,
         "state": state,
     }
@@ -167,8 +148,8 @@ def investigate(transaction: dict) -> dict:
     if not transaction:
         raise ValueError("transaction 비어있음")
 
-    out = _get_graph().invoke({"transaction": transaction})
-    return _select_result(out)
+    tx = TransactionInput.model_validate(transaction)
+    return investigate_transaction(tx).model_dump()
 
 
 def investigate_with_trace(
@@ -181,6 +162,7 @@ def investigate_with_trace(
     if not transaction:
         raise ValueError("transaction 비어있음")
 
+    ensure_runtime_ready()
     state = {"transaction": copy.deepcopy(transaction)}
     node_traces = []
     pipeline_nodes = _get_pipeline_nodes()
@@ -227,12 +209,12 @@ def investigate_with_trace(
 
 def sample_transaction():
     return {
-        "trans_num": "abc123",
+        "trans_num": "DEMO-REAL-001",
         "trans_date_trans_time": "2020-06-21 03:14:25",
-        "cc_num": 123456789,
-        "merchant": "fraud_Shop_Name",
+        "cc_num": 60416207185,
+        "merchant": "fraud_Altenwerth, Cartwright and Koss",
         "amt": 1500.0,
         "category": "shopping_net",
-        "city": "Seoul",
-        "state": "KR",
+        "city": "Fort Washakie",
+        "state": "WY",
     }

@@ -200,28 +200,34 @@ def format_json_value(value):
 def summarize_trace(trace: dict) -> list[str]:
     node_id = trace.get("id")
     data = trace.get("focus_data")
-    if not isinstance(data, dict):
-        return ["생성 데이터 없음"]
 
     if node_id == "transaction_analyzer":
+        if not isinstance(data, dict):
+            return ["생성 데이터 없음"]
         return [
             f"금액: ${format_json_value(data.get('amount'))}",
             f"시간대: {format_json_value(data.get('hour_of_day'))}시",
             f"야간 거래: {format_json_value(data.get('is_night_transaction'))}",
         ]
     if node_id == "customer_profile_tool":
+        if not isinstance(data, dict):
+            return ["생성 데이터 없음"]
         return [
             f"평균 결제금액: ${format_json_value(data.get('avg_amount_30d'))}",
             f"금액 Z-score: {format_json_value(data.get('amount_z_score'))}",
             f"미사용 카테고리: {format_json_value(data.get('is_unusual_category'))}",
         ]
     if node_id == "merchant_risk_assessor":
+        if not isinstance(data, dict):
+            return ["생성 데이터 없음"]
         return [
             f"가맹점 위험도: {format_json_value(data.get('risk_level'))}",
             f"차지백 비율: {format_json_value(data.get('chargeback_rate'))}",
             f"사기 신고 건수: {format_json_value(data.get('fraud_report_count'))}",
         ]
     if node_id == "velocity_checker":
+        if not isinstance(data, dict):
+            return ["생성 데이터 없음"]
         return [
             f"최근 1시간: {format_json_value(data.get('txn_last_1h'))}",
             f"최근 24시간: {format_json_value(data.get('txn_last_24h'))}",
@@ -243,6 +249,9 @@ def summarize_trace(trace: dict) -> list[str]:
         report = trace.get("updates", {}).get("report") or ""
         first_line = report.strip().splitlines()[0] if report.strip() else "리포트 생성 완료"
         return [first_line[:80]]
+
+    if not isinstance(data, dict):
+        return [format_json_value(data)] if data is not None else ["생성 데이터 없음"]
 
     return [f"{key}: {format_json_value(value)}" for key, value in list(data.items())[:3]]
 

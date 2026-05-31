@@ -1,5 +1,5 @@
-import sys
 import os
+import sys
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -15,13 +15,15 @@ from dotenv import load_dotenv
 
 load_dotenv(os.path.join(ROOT, ".env"))
 
-from services.investigate import investigate, sample_transaction
+from services.investigate import sample_transaction
+from src.api_interface import investigate_transaction
+from src.schemas import TransactionInput
 
 tx = sample_transaction()
 print("run:", tx["trans_num"])
 
 try:
-    res = investigate(tx)
+    res = investigate_transaction(TransactionInput.model_validate(tx)).model_dump()
 except Exception as e:
     print("fail:", e)
     sys.exit(1)

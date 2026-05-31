@@ -143,26 +143,27 @@ python scripts/smoke_test.py
 streamlit run frontend/app.py
 ```
 
-UI 쪽에서는 `services/investigate.py` 의 `investigate(transaction)` 쓰면 됨
+BE 연동은 `src/api_interface.py` 의 `investigate_transaction(tx)` 를 사용합니다.
 
-BE 연동 시에는 `src/api_interface.py` 의 `investigate_transaction(tx)` 를 사용하면
-입력 검증과 결과 스키마를 함께 받을 수 있습니다.
+Streamlit UI는 `services/investigate.py` 가 `api_interface` 를 import해 연결하며,
+단계별 진행 표시는 UI 전용 `investigate_with_trace()` 로 처리합니다.
 
 ### Python에서 직접 실행
 
 ```python
 from src.api_interface import investigate_transaction
+from src.schemas import TransactionInput
 
-result = investigate_transaction({
-    "trans_num": "abc123",
-    "trans_date_trans_time": "2020-06-21 03:14:25",
-    "cc_num": 123456789,
-    "merchant": "fraud_Shop_Name",
-    "amt": 1500.0,
-    "category": "shopping_net",
-    "city": "Seoul",
-    "state": "KR",
-})
+result = investigate_transaction(TransactionInput(
+    trans_num="DEMO-REAL-001",
+    trans_date_trans_time="2020-06-21 03:14:25",
+    cc_num=60416207185,
+    merchant="fraud_Altenwerth, Cartwright and Koss",
+    amt=1500.0,
+    category="shopping_net",
+    city="Fort Washakie",
+    state="WY",
+))
 
 print(result.action_decision)  # "block" / "review" / "approve"
 print(result.risk_level)       # "high" / "medium" / "low"
