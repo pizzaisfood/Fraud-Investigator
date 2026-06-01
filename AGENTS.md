@@ -1,6 +1,6 @@
-# CLAUDE.md — FraudInvestigator
+# AGENTS.md — FraudInvestigator
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to Codex (Codex.ai/code) when working with code in this repository.
 
 - **Notion**: https://www.notion.so/35dd359e3157816fb904e8702f80f35e
 - **GitHub**: https://github.com/Jeonghun-LEE-KMU/Fraud-Investigator

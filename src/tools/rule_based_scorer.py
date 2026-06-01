@@ -19,62 +19,60 @@ except FileNotFoundError:
 
 
 # ══════════════════════════════════════════════════════════════════════
-# 룰 조건 함수 (R001 ~ R007)
+# 룰 조건 함수 (R001, R002, R004~R007 — R003은 ML팀 결정으로 폐기)
 # 각 함수는 FraudState를 받아 조건이 충족되면 True를 반환한다.
 # ══════════════════════════════════════════════════════════════════════
 
 
 def _check_R001(state: FraudState) -> bool:
-    """R001: 거래금액이 신용한도의 80%를 초과"""
+    """R001: 고액 이상거래 — 거래금액이 고객 30일 평균의 5배 이상"""
     cp = state.get("customer_profile") or {}
     tx = state.get("tx_features") or {}
-    limit = cp.get("credit_limit", 0)
+    avg = cp.get("avg_amount_30d", 0)
     amount = tx.get("amount", 0)
-    return limit > 0 and amount > limit * 0.8
+    # avg가 0이면 (프로필 없음/신규고객) 5배 기준이 무의미 → 발동 안 함
+    return avg > 0 and amount >= avg * 5
 
 
 def _check_R002(state: FraudState) -> bool:
-    """R002: 새벽 시간대(00~05시, 22~23시) 거래"""
+    """R002: 비정상 시간대 — 새벽/심야 거래 (hour<6 or hour>=22)"""
     tx = state.get("tx_features") or {}
+    # is_night_transaction은 transaction_analyzer가 (hour<6 or hour>=22)로 계산해줌
     return tx.get("is_night_transaction", False)
 
 
-def _check_R003(state: FraudState) -> bool:
-    """R003: 평소 이용 카테고리 외 거래"""
-    cp = state.get("customer_profile") or {}
-    return cp.get("is_unusual_category", False)
-
-
 def _check_R004(state: FraudState) -> bool:
-    """R004: 고위험(high) 가맹점에서의 거래"""
+    """R004: 고위험 가맹점 — risk_level=high 가맹점 거래"""
     mr = state.get("merchant_risk") or {}
     return mr.get("is_high_risk", False)
 
 
 def _check_R005(state: FraudState) -> bool:
-    """R005: 단시간 다중 거래 (velocity_flag 발동)"""
+    """R005: 짧은 시간 반복 거래 — 10분 내 3건 이상 (velocity_flag)"""
     vs = state.get("velocity_signals") or {}
     return vs.get("velocity_flag", False)
 
 
 def _check_R006(state: FraudState) -> bool:
-    """R006: 평소 거래금액 대비 Z-score 2.0 초과 (통계적 이상)"""
+    """R006: 한도 근접 거래 — 거래 금액이 카드 한도의 70% 이상"""
     cp = state.get("customer_profile") or {}
-    z_score = cp.get("amount_z_score", 0.0)
-    return abs(z_score) > 2.0
+    tx = state.get("tx_features") or {}
+    limit = cp.get("credit_limit", 0)
+    amount = tx.get("amount", 0)
+    return limit > 0 and amount >= limit * 0.7
 
 
 def _check_R007(state: FraudState) -> bool:
-    """R007: 차지백(Chargeback) 비율이 높은 가맹점"""
-    mr = state.get("merchant_risk") or {}
-    return mr.get("is_high_chargeback", False)
+    """R007: 평소 미사용 카테고리 — usual_categories 상위 5개에 없는 카테고리"""
+    cp = state.get("customer_profile") or {}
+    # is_unusual_category는 customer_profile_tool이 계산해줌 (CSV의 usual_categories 기준)
+    return cp.get("is_unusual_category", False)
 
 
 # 룰 ID → 조건 함수 매핑 테이블
 _RULE_CHECKS = {
     "R001": _check_R001,
     "R002": _check_R002,
-    "R003": _check_R003,
     "R004": _check_R004,
     "R005": _check_R005,
     "R006": _check_R006,
@@ -90,7 +88,7 @@ _RULE_CHECKS = {
 def rule_based_scorer(state: FraudState) -> dict:
     """
     Tool 5: Rule-based Scorer
-    - 역할: R001~R007 룰을 순서대로 평가하고 발동된 룰의 점수를 누적한다.
+    - 역할: 6개 FDS 룰(R001, R002, R004~R007)을 순서대로 평가 — R003은 폐기됨
     - LLM 사용: X (규칙 기반 계산)
     - 읽는 State 필드: tx_features, customer_profile, merchant_risk, velocity_signals
     - 쓰는 State 필드: rule_hits, rule_score
