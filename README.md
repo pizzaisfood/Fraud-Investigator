@@ -140,7 +140,7 @@ source .venv/bin/activate
 ### 2. 패키지 설치
 
 ```bash
-pip install -r requirements.txt
+pip install -r requirements.txt --extra-index-url https://download.pytorch.org/whl/cpu
 ```
 
 ### 4. 환경변수 설정
@@ -283,9 +283,9 @@ RAG가 없거나 실패하면 `None`으로 두고 파이프라인을 계속 진�
 ## 팀 역할
 
 | 역할 | 담당 |
-|---|---|
-| LLM 파이프라인, 팀장, 발표 | 이정훈 |
-| ML 모델 | ML 담당 팀원 |
-| RAG | RAG 담당 팀원 |
-| PM, LLM-RAG 연결 | PM 담당 팀원 |
-| BE/FE | BE/FE 담당 팀원 |
+|------|------|
+| LLM 파이프라인 · 팀장 · 발표 | 이정훈 |
+| RAG | - |
+| PM · LLM-RAG 연결 | 채주형 |
+| 백엔드 · 프론트엔드 | - |
+| ML 모델 (LightGBM) | - |

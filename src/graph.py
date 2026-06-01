@@ -1,10 +1,12 @@
 import sys
 import os
+
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from langgraph.graph import StateGraph, START, END
 
 from src.state import FraudState
+from src.tools.rag_retriever import rag_retriever
 from src.tools.transaction_analyzer import transaction_analyzer
 from src.tools.customer_profile_tool import customer_profile_tool
 from src.tools.merchant_risk_assessor import merchant_risk_assessor
@@ -37,6 +39,8 @@ def build_graph():
     graph.add_node("ml_fraud_scorer",        ml_fraud_scorer)
     graph.add_node("action_decision_maker",  action_decision_maker)
     graph.add_node("report_generator",       report_generator)
+
+    graph.add_node("rag_retriever", rag_retriever)
 
     # ── 3. 엣지 연결 (의존성 기반 병렬 실행) ───────────────────────
     # LangGraph의 fan-out / fan-in 패턴:
@@ -73,7 +77,10 @@ def build_graph():
 
     # Layer 5: T5+T6 → T7 (fan-in: 둘 다 끝나야 최종 판단 가능)
     graph.add_edge("rule_based_scorer", "action_decision_maker")
-    graph.add_edge("ml_fraud_scorer",   "action_decision_maker")
+    # graph.add_edge("ml_fraud_scorer",   "action_decision_maker")
+
+    graph.add_edge("ml_fraud_scorer",   "rag_retriever")
+    graph.add_edge("rag_retriever", "action_decision_maker")
 
     # Layer 6: T7 → T8 → END (순차)
     graph.add_edge("action_decision_maker", "report_generator")
