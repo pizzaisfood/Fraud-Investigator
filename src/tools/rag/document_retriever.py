@@ -1,6 +1,7 @@
 # src/tools/rag/document_retriever.py
 
 import os
+from functools import lru_cache
 from typing import List, Dict, Any, Optional
 from dotenv import load_dotenv
 from qdrant_client import QdrantClient
@@ -9,27 +10,59 @@ from langchain_huggingface import HuggingFaceEmbeddings
 
 load_dotenv()
 
-# ─────────────────────────────────────────────────────────
-# 초기화 (한 번만 실행)
-# ─────────────────────────────────────────────────────────
-_embeddings = HuggingFaceEmbeddings(
-    model_name="snunlp/KR-SBERT-V40K-klueNLI-augSTS"
-)
-_qdrant_client = QdrantClient(url=os.getenv("QDRANT_URL"))
 
-_case_vectorstore = QdrantVectorStore(
-    client=_qdrant_client,
-    collection_name="case_chunks",
-    embedding=_embeddings,
-)
-_case_retriever = _case_vectorstore.as_retriever(search_kwargs={"k": 5})
+@lru_cache(maxsize=1)
+def _get_embeddings() -> Optional[HuggingFaceEmbeddings]:
+    try:
+        return HuggingFaceEmbeddings(
+            model_name="snunlp/KR-SBERT-V40K-klueNLI-augSTS"
+        )
+    except Exception:
+        return None
 
-_law_vectorstore = QdrantVectorStore(
-    client=_qdrant_client,
-    collection_name="law_chunks",
-    embedding=_embeddings,
-)
-_law_retriever = _law_vectorstore.as_retriever(search_kwargs={"k": 4})
+
+@lru_cache(maxsize=1)
+def _get_qdrant_client() -> Optional[QdrantClient]:
+    try:
+        return QdrantClient(url=os.getenv("QDRANT_URL"))
+    except Exception:
+        return None
+
+
+@lru_cache(maxsize=1)
+def _get_case_retriever():
+    embeddings = _get_embeddings()
+    qdrant_client = _get_qdrant_client()
+    if embeddings is None or qdrant_client is None:
+        return None
+
+    try:
+        vectorstore = QdrantVectorStore(
+            client=qdrant_client,
+            collection_name="case_chunks",
+            embedding=embeddings,
+        )
+        return vectorstore.as_retriever(search_kwargs={"k": 5})
+    except Exception:
+        return None
+
+
+@lru_cache(maxsize=1)
+def _get_law_retriever():
+    embeddings = _get_embeddings()
+    qdrant_client = _get_qdrant_client()
+    if embeddings is None or qdrant_client is None:
+        return None
+
+    try:
+        vectorstore = QdrantVectorStore(
+            client=qdrant_client,
+            collection_name="law_chunks",
+            embedding=embeddings,
+        )
+        return vectorstore.as_retriever(search_kwargs={"k": 4})
+    except Exception:
+        return None
 
 
 def search_cases(query: str, top_k: int = 5) -> List[Dict[str, Any]]:
@@ -47,7 +80,14 @@ def search_cases(query: str, top_k: int = 5) -> List[Dict[str, Any]]:
             "geo_scope": str,  # "국내" or "해외"
         }]
     """
-    results = _case_retriever.invoke(query)
+    retriever = _get_case_retriever()
+    if retriever is None:
+        return []
+
+    try:
+        results = retriever.invoke(query)
+    except Exception:
+        return []
     
     formatted_results = []
     for i, doc in enumerate(results[:top_k]):
@@ -83,7 +123,14 @@ def search_laws(query: str, top_k: int = 4) -> List[Dict[str, Any]]:
             "source": str,  # "자금세탁 방지 규정" 등
         }]
     """
-    results = _law_retriever.invoke(query)
+    retriever = _get_law_retriever()
+    if retriever is None:
+        return []
+
+    try:
+        results = retriever.invoke(query)
+    except Exception:
+        return []
     
     formatted_results = []
     for doc in results[:top_k]:
