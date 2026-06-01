@@ -1,20 +1,12 @@
-<<<<<<< HEAD
 annotated-doc==0.0.4
-=======
-# 핵심 LLM 프레임워크
 langchain-openai==1.2.1
 openai==2.36.0
 langchain-core==1.4.0
 langgraph==1.2.0
-
-# 데이터 처리 & ML
 pandas==3.0.2
 joblib==1.5.3
 scikit-learn==1.8.0
 lightgbm==4.6.0
-
-# 기존 의존성
->>>>>>> origin/feature/llm-pipeline
 annotated-types==0.7.0
 anyio==4.13.0
 certifi==2026.4.22
@@ -36,19 +28,15 @@ hyperframe==6.1.0
 idna==3.15
 Jinja2==3.1.6
 jiter==0.14.0
-joblib==1.5.3
 json_repair==0.59.10
 jsonpatch==1.33
 jsonpointer==3.1.1
 langchain-classic==1.0.7
-langchain-core==1.4.0
 langchain-huggingface==1.2.2
 langchain-neo4j==0.9.0
-langchain-openai==1.2.1
 langchain-protocol==0.0.15
 langchain-qdrant==1.1.0
 langchain-text-splitters==1.1.2
-langgraph==1.2.0
 langgraph-checkpoint==4.1.0
 langgraph-prebuilt==1.1.0
 langgraph-sdk==0.3.14
@@ -61,11 +49,9 @@ neo4j==6.2.0
 neo4j-graphrag==1.17.0
 networkx==3.6.1
 numpy==2.4.6
-openai==2.36.0
 orjson==3.11.9
 ormsgpack==1.12.2
 packaging==26.2
-pandas==3.0.2
 portalocker==3.2.0
 protobuf==7.35.0
 pydantic==2.13.4
@@ -82,7 +68,6 @@ requests==2.34.2
 requests-toolbelt==1.0.0
 rich==15.0.0
 safetensors==0.7.0
-scikit-learn==1.8.0
 scipy==1.17.1
 sentence-transformers==5.5.1
 setuptools==70.2.0
