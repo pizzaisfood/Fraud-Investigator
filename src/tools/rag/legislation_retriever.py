@@ -2,6 +2,7 @@
 
 import os
 from typing import List, Dict, Any, Optional
+from anyio.functools import lru_cache
 from dotenv import load_dotenv
 from langchain_neo4j import Neo4jGraph
 from src.tools.rag.document_retriever import search_laws
@@ -11,12 +12,17 @@ load_dotenv()
 # ─────────────────────────────────────────────────────────
 # Neo4j Graph 초기화
 # ─────────────────────────────────────────────────────────
-_neo4j_graph = Neo4jGraph(
-    url=os.getenv("NEO4J_URI"),
-    username=os.getenv("NEO4J_USER"),
-    password=os.getenv("NEO4J_PASSWORD"),
-)
-
+@lru_cache(maxsize=1)
+def _get_neo4j_graph():
+    try:
+        return Neo4jGraph(
+            url=os.getenv("NEO4J_URI"),
+            username=os.getenv("NEO4J_USER"),
+            password=os.getenv("NEO4J_PASSWORD"),
+        )
+    except Exception as exc:
+        print(f"Neo4j 연결 실패: {exc}")
+        return None
 
 def _retrieve_related_articles(article_ids: List[str]) -> List[Dict[str, Any]]:
     """
@@ -24,6 +30,10 @@ def _retrieve_related_articles(article_ids: List[str]) -> List[Dict[str, Any]]:
     (rag_experiment2.ipynb의 graph_retrieve_by_article 참고)
     """
     if not article_ids:
+        return []
+    
+    neo4j_graph = _get_neo4j_graph()
+    if neo4j_graph is None:
         return []
     
     cypher = """
@@ -34,7 +44,7 @@ def _retrieve_related_articles(article_ids: List[str]) -> List[Dict[str, Any]]:
     """
     
     try:
-        results = _neo4j_graph.query(cypher, {"article_ids": article_ids})
+        results = neo4j_graph.query(cypher, {"article_ids": article_ids})
         return results
     except Exception as e:
         print(f"Neo4j 쿼리 실패: {e}")

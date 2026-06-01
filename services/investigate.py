@@ -6,8 +6,6 @@ from typing import Callable, Optional
 
 from dotenv import load_dotenv
 
-from src.tools.rag_retriever import rag_retriever
-
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(ROOT)
 
@@ -102,6 +100,7 @@ def _result_from_state(state: dict) -> dict:
 
 def _get_pipeline_nodes():
     ensure_runtime_ready()
+    from src.tools.rag_retriever import rag_retriever
     from src.tools.action_decision_maker import action_decision_maker
     from src.tools.customer_profile_tool import customer_profile_tool
     from src.tools.merchant_risk_assessor import merchant_risk_assessor
