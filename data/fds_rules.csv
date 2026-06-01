@@ -1,0 +1,7 @@
+rule_id,rule_name,condition,severity,score
+R001,고액 이상거래,고객 30일 평균의 5배 이상 금액,high,25
+R002,비정상 시간대,평소 활동 시간대가 아닌 새벽/심야 거래 (hour<6 or hour>=22),medium,10
+R004,고위험 가맹점,risk_level=high 가맹점 거래,high,25
+R005,짧은 시간 반복 거래,10분 내 3건 이상 거래,high,20
+R006,한도 근접 거래,거래 금액이 카드 한도의 70% 이상,medium,15
+R007,평소 미사용 카테고리,usual_categories 상위 5개에 없는 카테고리,low,2
