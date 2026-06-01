@@ -1,0 +1,115 @@
+{
+  "training": {
+    "auc": 0.9929136540071848,
+    "f1": 0.38755382692040563,
+    "precision": 0.24482274482274483,
+    "recall": 0.9293804130579614,
+    "precision_at_5pct": 0.11183094246490823,
+    "threshold_sweep": [
+      {
+        "thr": 0.3,
+        "P": 0.16918500892325997,
+        "R": 0.9473684210526315,
+        "F1": 0.2870987280436099
+      },
+      {
+        "thr": 0.4,
+        "P": 0.20559114735002912,
+        "R": 0.9407061958694204,
+        "F1": 0.33743577488349863
+      },
+      {
+        "thr": 0.5,
+        "P": 0.24482274482274483,
+        "R": 0.9293804130579614,
+        "F1": 0.38755382692040563
+      },
+      {
+        "thr": 0.6,
+        "P": 0.2928950159066808,
+        "R": 0.9200532978014657,
+        "F1": 0.4443371943371943
+      },
+      {
+        "thr": 0.7,
+        "P": 0.3584607274644175,
+        "R": 0.9060626249167222,
+        "F1": 0.5136921624173749
+      },
+      {
+        "thr": 0.8,
+        "P": 0.4418527157614129,
+        "R": 0.8834110592938041,
+        "F1": 0.5890715237672146
+      }
+    ]
+  },
+  "shap": [
+    {
+      "feature": "amt",
+      "shap_importance": 1.4172851721151591
+    },
+    {
+      "feature": "chargeback_rate",
+      "shap_importance": 1.1532955376546088
+    },
+    {
+      "feature": "fraud_report_count",
+      "shap_importance": 0.5931620716286617
+    },
+    {
+      "feature": "avg_amount_30d",
+      "shap_importance": 0.5717848308210015
+    },
+    {
+      "feature": "amount_ratio",
+      "shap_importance": 0.4787590463360967
+    },
+    {
+      "feature": "is_unusual_hour",
+      "shap_importance": 0.44073727209623614
+    },
+    {
+      "feature": "std_amount_30d",
+      "shap_importance": 0.379815875013298
+    },
+    {
+      "feature": "is_unusual_category",
+      "shap_importance": 0.1483921907547981
+    },
+    {
+      "feature": "merchant_risk_score",
+      "shap_importance": 0.10542866222969505
+    },
+    {
+      "feature": "is_unusual_city",
+      "shap_importance": 0.0
+    }
+  ],
+  "eval_labels": {
+    "low": 287,
+    "medium": 8,
+    "critical": 4,
+    "high": 1
+  },
+  "cases": [
+    {
+      "name": "케이스 A (정상)",
+      "score": 1.4,
+      "level": "low",
+      "action": "approve"
+    },
+    {
+      "name": "케이스 B (고객확인)",
+      "score": 60.1,
+      "level": "high",
+      "action": "customer_verify"
+    },
+    {
+      "name": "케이스 C (임시보류)",
+      "score": 94.8,
+      "level": "critical",
+      "action": "temporary_hold"
+    }
+  ]
+}
