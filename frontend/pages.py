@@ -1,3 +1,5 @@
+import html as html_lib
+
 import streamlit as st
 
 from services.investigate import investigate_with_trace
@@ -161,14 +163,23 @@ def render_request_list():
         "</div>"
     )
     for row in rows:
+        request_id = html_lib.escape(str(row["request_id"]))
+        created_at = html_lib.escape(str(row["created_at"]))
+        transaction_id = html_lib.escape(str(row["transaction_id"]))
+        merchant = html_lib.escape(str(row["merchant"]))
+        risk_level = html_lib.escape(str(row["risk_level"]))
+        action = html_lib.escape(str(row["action"]))
+        progress = html_lib.escape(str(row["progress"]))
+        current_node = html_lib.escape(str(row["current_node"]))
         ml_score = "-" if row["ml_score"] is None else f"{row['ml_score']:.4f}"
+        rule_score = html_lib.escape(str(row["rule_score"]))
         html.append(
-            f'<a class="table-row" href="?page=detail&rid={row["request_id"]}" target="_self">'
-            f'<div><div class="table-main">{row["request_id"]}</div><div class="table-sub">{row["created_at"]}</div></div>'
-            f'<div><div class="table-main">{row["transaction_id"]}</div><div class="table-sub">{row["merchant"]}</div></div>'
-            f'<div><div class="table-main">{row["risk_level"]}</div><div class="table-sub">{row["action"]}</div></div>'
-            f'<div><div class="table-main">Rule {row["rule_score"]}</div><div class="table-sub">ML {ml_score}</div></div>'
-            f'<div><div class="table-main">{row["progress"]}</div><div class="table-sub">{row["current_node"]}</div></div>'
+            f'<a class="table-row" href="?page=detail&rid={request_id}" target="_self">'
+            f'<div><div class="table-main">{request_id}</div><div class="table-sub">{created_at}</div></div>'
+            f'<div><div class="table-main">{transaction_id}</div><div class="table-sub">{merchant}</div></div>'
+            f'<div><div class="table-main">{risk_level}</div><div class="table-sub">{action}</div></div>'
+            f'<div><div class="table-main">Rule {rule_score}</div><div class="table-sub">ML {ml_score}</div></div>'
+            f'<div><div class="table-main">{progress}</div><div class="table-sub">{current_node}</div></div>'
             f'<div class="table-action-cell"><span class="table-detail-btn">상세 보기</span></div>'
             f"</a>"
         )
