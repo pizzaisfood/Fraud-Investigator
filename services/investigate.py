@@ -6,6 +6,8 @@ from typing import Callable, Optional
 
 from dotenv import load_dotenv
 
+from src.tools.rag_retriever import rag_retriever
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(ROOT)
 
@@ -21,6 +23,7 @@ NODE_DEFINITIONS = [
     ("velocity_checker", "거래 빈도", "velocity_signals"),
     ("rule_based_scorer", "룰 스코어", "rule_score"),
     ("ml_fraud_scorer", "ML 점수", "ml_score"),
+    ("rag_retriever", "RAG 검색", "rag_evidence"), 
     ("action_decision_maker", "최종 판단", "action_decision"),
     ("report_generator", "리포트 생성", "report"),
 ]
@@ -115,6 +118,7 @@ def _get_pipeline_nodes():
         "velocity_checker": velocity_checker,
         "rule_based_scorer": rule_based_scorer,
         "ml_fraud_scorer": ml_fraud_scorer,
+        "rag_retriever": rag_retriever,    
         "action_decision_maker": action_decision_maker,
         "report_generator": report_generator,
     }

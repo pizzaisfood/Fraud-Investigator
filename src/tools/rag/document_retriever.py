@@ -144,4 +144,4 @@ def search_laws(query: str, top_k: int = 4) -> List[Dict[str, Any]]:
             "source": "법령 DB",
         })
     
-    return formatted_results
+    return formatted_results 
