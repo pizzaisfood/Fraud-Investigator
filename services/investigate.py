@@ -11,7 +11,7 @@ sys.path.append(ROOT)
 
 load_dotenv(os.path.join(ROOT, ".env"))
 
-from src.api_interface import investigate_transaction
+from src.graph import fraud_graph
 from src.schemas import FraudInvestigationResult, TransactionInput
 
 NODE_DEFINITIONS = [
@@ -149,7 +149,8 @@ def investigate(transaction: dict) -> dict:
         raise ValueError("transaction 비어있음")
 
     tx = TransactionInput.model_validate(transaction)
-    return investigate_transaction(tx).model_dump()
+    final_state = fraud_graph.invoke({"transaction": tx.model_dump()})
+    return _result_from_state(final_state)
 
 
 def investigate_with_trace(
