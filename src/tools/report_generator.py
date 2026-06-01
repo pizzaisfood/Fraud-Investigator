@@ -5,14 +5,47 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from dotenv import load_dotenv
 from langchain_core.messages import HumanMessage, SystemMessage
-from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_openai import ChatOpenAI
+from openai import APIConnectionError, APITimeoutError, RateLimitError
+from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 from src.state import FraudState
 
 load_dotenv()
 
-_llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0.3)
+_llm = ChatOpenAI(
+    model="gpt-4o",
+    temperature=0.3,
+    openai_api_key=os.environ.get("GENAI_TEAM09"),
+)
 # temperature=0.3: 판단(Tool 7)보다는 약간 높게 → 자연스러운 문장 생성
+
+# ── 재시도 가능한 에러 유형 정의 ──────────────────────────────────────
+# 네트워크 불안정 / 요청 과부하 → 잠깐 기다리면 해결될 가능성 있음
+# AuthenticationError, BadRequestError 같은 구조적 오류는 포함하지 않는다.
+# 재시도해도 같은 오류가 반복될 뿐이므로 API 비용만 낭비됨.
+_RETRYABLE_ERRORS = (RateLimitError, APIConnectionError, APITimeoutError)
+
+
+@retry(
+    retry=retry_if_exception_type(_RETRYABLE_ERRORS),
+    # 언제 재시도할지: 위에 정의한 3가지 에러가 날 때만
+    stop=stop_after_attempt(3),
+    # 최대 몇 번: 총 3번 시도 (첫 호출 1번 + 재시도 2번)
+    wait=wait_exponential(multiplier=1, min=2, max=10),
+    # 얼마나 기다렸다 재시도할지:
+    #   1번 실패 → 2초 대기 → 재시도
+    #   2번 실패 → 4초 대기 → 재시도
+    #   3번 실패 → 포기, 예외 re-raise
+    # wait_exponential: 실패할수록 대기 시간이 지수적으로 늘어남 (서버 과부하 방지)
+    reraise=True,
+    # 모든 재시도가 실패했을 때: 마지막 예외를 그대로 다시 던짐
+    # (reraise=True 없으면 tenacity 자체 예외로 감싸서 디버깅이 어려워짐)
+)
+def _invoke_with_retry(messages: list) -> str:
+    """GPT-4o 호출 — 재시도 정책이 적용된 내부 함수."""
+    response = _llm.invoke(messages)
+    return response.content
 
 
 def report_generator(state: FraudState) -> dict:
@@ -22,23 +55,26 @@ def report_generator(state: FraudState) -> dict:
     - LLM 사용: O (GPT-4o로 자연어 리포트 작성)
     - 읽는 State 필드: 전체 (transaction ~ action_decision)
     - 쓰는 State 필드: report
+    - 재시도: RateLimitError / APIConnectionError / APITimeoutError → 최대 3회
     """
     prompt = _build_prompt(state)
 
+    messages = [
+        SystemMessage(
+            content=(
+                "당신은 금융 사기 조사 전문가입니다. "
+                "분석 데이터를 바탕으로 명확하고 전문적인 한국어 조사 리포트를 작성합니다."
+            )
+        ),
+        HumanMessage(content=prompt),
+    ]
+
     try:
-        messages = [
-            SystemMessage(
-                content=(
-                    "당신은 금융 사기 조사 전문가입니다. "
-                    "분석 데이터를 바탕으로 명확하고 전문적인 한국어 조사 리포트를 작성합니다."
-                )
-            ),
-            HumanMessage(content=prompt),
-        ]
-        response = _llm.invoke(messages)
-        return {"report": response.content}
+        content = _invoke_with_retry(messages)
+        return {"report": content}
 
     except Exception as e:
+        # 재시도 3번 후에도 실패하거나 재시도 불가 에러 (AuthenticationError 등)
         return {"report": f"[리포트 생성 실패: {e}]"}
 
 
@@ -57,6 +93,7 @@ def _build_prompt(state: FraudState) -> str:
     ml_score = state.get("ml_score")
     risk_level = state.get("risk_level") or "unknown"
     action = state.get("action_decision") or "unknown"
+    rag_evidence = state.get("rag_evidence") or []
 
     # ml_score 표시 처리
     ml_str = (
@@ -85,6 +122,17 @@ def _build_prompt(state: FraudState) -> str:
     action_ko = action_map.get(action, action)
     risk_ko = risk_map.get(risk_level, risk_level)
 
+    # RAG 근거 자료 섹션 구성
+    if rag_evidence:
+        rag_lines = "\n".join(
+            f"  - [{e.get('source', '?')}] (유사도: {e.get('similarity', 0):.2f})\n"
+            f"    {e.get('snippet', '')[:200]}"
+            for e in rag_evidence
+        )
+        rag_section = f"\n[7. 유사 사기 사례 (RAG 검색)]\n{rag_lines}"
+    else:
+        rag_section = "\n[7. 유사 사기 사례]\n- 검색 결과 없음 (RAG 미연동 또는 유사 사례 없음)"
+
     prompt = f"""다음은 거래 #{tx.get("trans_num", "N/A")}에 대한 사기 탐지 분석 결과입니다.
 이 데이터를 바탕으로 전문적인 사기 조사 리포트를 작성해 주세요.
 
@@ -101,6 +149,7 @@ def _build_prompt(state: FraudState) -> str:
 - 이번 거래 Z-score: {cp.get("amount_z_score", 0):.2f} ({"이상 금액" if cp.get("is_amount_anomalous") else "정상 범위"})
 - 평소 이용 카테고리: {cp.get("usual_categories", [])}
 - 이번 거래 카테고리 이상 여부: {"예" if cp.get("is_unusual_category") else "아니오"}
+- 이번 거래 지역 이상 여부: {"예" if cp.get("is_unusual_city") else "아니오"}
 - 신용 한도: ${cp.get("credit_limit", 0):.2f}
 
 [3. 가맹점 위험도]
@@ -119,8 +168,9 @@ def _build_prompt(state: FraudState) -> str:
 
 [6. ML 모델 예측]
 - 사기 확률: {ml_str}
+{rag_section}
 
-[7. 최종 판단]
+[8. 최종 판단]
 - 위험 등급: {risk_ko} ({risk_level})
 - 조치: {action_ko} ({action})
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

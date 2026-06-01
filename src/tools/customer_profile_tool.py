@@ -48,9 +48,12 @@ def customer_profile_tool(state: FraudState) -> dict:
     z_score = (current_amount - avg) / std if std > 0 else 0.0
 
     # ── 3. 카테고리 이상 감지 ────────────────────────────────
-    # usual_categories는 CSV에 문자열로 저장됨 → eval()로 리스트로 변환
+    # usual_categories는 CSV에 문자열로 저장됨 → literal_eval()로 리스트로 변환
+    # eval() 대신 ast.literal_eval() 사용: 문자열/리스트/딕셔너리 등 리터럴만 허용
+    # eval()은 임의 코드를 실행할 수 있어 CSV 데이터가 오염되면 위험함
+    import ast
     try:
-        usual_categories = eval(str(row["usual_categories"]))
+        usual_categories = ast.literal_eval(str(row["usual_categories"]))
     except Exception:
         usual_categories = []
 
@@ -71,6 +74,7 @@ def customer_profile_tool(state: FraudState) -> dict:
         "amount_z_score": round(z_score, 2),
         "is_amount_anomalous": abs(z_score) > 2,
         "is_unusual_category": is_unusual_category,
+        "is_unusual_city": int(tx_features.get("city", "") != str(row.get("home_city", ""))),
     }
 
     return {"customer_profile": customer_profile}
