@@ -49,13 +49,13 @@ def rag_retriever(state: FraudState) -> dict:
         
         # Step 4: 결과를 rag_evidence 스키마로 변환
         rag_evidence = _format_rag_evidence(
-            case_results=case_results,
+            case_results=case_results[:5],  # 최대 5개까지만 사용
             law_results=law_results,
             priority_tags=query_strategy["priority_tags"]
         )
         
         # Step 5: 최대 5개까지만 반환 (인터페이스 가이드 권장)
-        return {"rag_evidence": rag_evidence[:5] if rag_evidence else None}
+        return {"rag_evidence": rag_evidence if rag_evidence else None}
     
     except Exception as e:
         print(f"RAG Retriever 오류: {e}")

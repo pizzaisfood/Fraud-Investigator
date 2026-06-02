@@ -2,8 +2,6 @@ import os
 import sys
 from typing import List, Dict, Any, Optional
 
-from langchain_mistralai import ChatMistralAI
-
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from anyio import Path
@@ -17,17 +15,10 @@ from src.state import FraudState
 
 load_dotenv()
 
-# _llm = ChatOpenAI(
-#     model="gpt-4o",
-#     temperature=0.3,
-#     openai_api_key=os.environ.get("GENAI_TEAM09"),
-# )
-
-_llm = ChatMistralAI(
-    model="mistral-small-latest",
+_llm = ChatOpenAI(
+    model="gpt-4o",
     temperature=0.3,
-    api_key=os.environ.get("MISTRAL_API_KEY"),
-    
+    openai_api_key=os.environ.get("GENAI_TEAM09"),
 )
 
 # temperature=0.3: 판단(Tool 7)보다는 약간 높게 → 자연스러운 문장 생성
